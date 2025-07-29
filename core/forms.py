@@ -68,7 +68,7 @@ class CommentForm(forms.ModelForm):
 
 
 class CommunityForm(forms.ModelForm):
-    """Form for creating communities"""
+    """Form for creating and editing communities"""
     
     class Meta:
         model = Community
@@ -76,7 +76,7 @@ class CommunityForm(forms.ModelForm):
         widgets = {
             'name': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'community_name (lowercase, no spaces)'
+                'placeholder': 'community_name'
             }),
             'display_name': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -84,13 +84,7 @@ class CommunityForm(forms.ModelForm):
             }),
             'description': forms.Textarea(attrs={
                 'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'Describe your community...'
+                'rows': 4,
+                'placeholder': 'Describe what this community is about...'
             })
         }
-    
-    def clean_name(self):
-        name = self.cleaned_data['name']
-        if not name.islower() or ' ' in name:
-            raise forms.ValidationError("Community name must be lowercase with no spaces")
-        return name
