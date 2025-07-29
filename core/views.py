@@ -81,17 +81,51 @@ def post_detail(request, post_id):
     """Post detail page with comments"""
     post = get_object_or_404(Post, id=post_id, is_deleted=False)
     
-    # Get top-level comments and their replies
-    comments = post.comments.filter(
-        is_deleted=False, parent_comment=None
-    ).select_related('author').prefetch_related('replies__author')
+    # Handle comment creation
+    if request.method == 'POST' and request.user.is_authenticated:
+        content = request.POST.get('content')
+        parent_id = request.POST.get('parent_id')
+        
+        if content:
+            comment = Comment(
+                post=post,
+                author=request.user,
+                content=content.strip()
+            )
+            
+            if parent_id:
+                parent_comment = get_object_or_404(Comment, id=parent_id)
+                comment.parent_comment = parent_comment
+            
+            comment.save()
+            
+            # Update post comment count
+            post.comment_count = F('comment_count') + 1
+            post.save(update_fields=['comment_count'])
+            
+            messages.success(request, 'Comment added successfully!')
+            return redirect('post_detail', post_id=post.id)
     
-    comment_form = CommentForm()
+    # Get all comments in a nested structure
+    def get_nested_comments(parent=None, level=0):
+        comments = post.comments.filter(
+            is_deleted=False, 
+            parent_comment=parent
+        ).select_related('author').order_by('-score', 'created_at')
+        
+        result = []
+        for comment in comments:
+            comment.level = level
+            result.append(comment)
+            result.extend(get_nested_comments(comment, level + 1))
+        
+        return result
+    
+    comments = get_nested_comments()
     
     return render(request, 'core/post_detail.html', {
         'post': post,
-        'comments': comments,
-        'comment_form': comment_form
+        'comments': comments
     })
 
 

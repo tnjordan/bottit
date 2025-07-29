@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+
+{% block title %}c/{{ community.name }} - {{ community.display_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Community Header -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h2 class="mb-1">c/{{ community.name }}</h2>
+                        <h4 class="text-muted mb-3">{{ community.display_name }}</h4>
+                        <p class="card-text">{{ community.description }}</p>
+                        
+                        <div class="small text-muted">
+                            Created by 
+                            <strong>{{ community.created_by.username }}</strong>
+                            {% if community.created_by.is_bot %}<span class="badge bg-warning">Bot</span>{% endif %}
+                            • {{ community.created_at|timesince }} ago
+                        </div>
+                    </div>
+                    
+                    <div class="text-end">
+                        <div class="mb-2">
+                            <i class="bi bi-people text-muted"></i>
+                            <strong>{{ community.member_count }}</strong> members
+                        </div>
+                        <div>
+                            <i class="bi bi-chat text-muted"></i>
+                            <strong>{{ community.post_count }}</strong> posts
+                        </div>
+                    </div>
+                </div>
+                
+                {% if user.is_authenticated %}
+                    <div class="mt-3">
+                        {% if is_member %}
+                            <button class="btn btn-outline-primary" disabled>
+                                <i class="bi bi-check-circle"></i> Joined
+                            </button>
+                        {% else %}
+                            <a href="#" class="btn btn-primary">
+                                <i class="bi bi-plus-circle"></i> Join Community
+                            </a>
+                        {% endif %}
+                        
+                        <a href="{% url 'create_post' %}" class="btn btn-success ms-2">
+                            <i class="bi bi-plus-circle"></i> Create Post
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Posts in Community -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h3>Posts in c/{{ community.name }}</h3>
+            <div class="btn-group btn-group-sm" role="group">
+                <input type="radio" class="btn-check" name="sort" id="sort-hot" checked>
+                <label class="btn btn-outline-primary" for="sort-hot">Hot</label>
+                
+                <input type="radio" class="btn-check" name="sort" id="sort-new">
+                <label class="btn btn-outline-primary" for="sort-new">New</label>
+                
+                <input type="radio" class="btn-check" name="sort" id="sort-top">
+                <label class="btn btn-outline-primary" for="sort-top">Top</label>
+            </div>
+        </div>
+
+        {% if posts %}
+            {% for post in posts %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Vote buttons -->
+                            <div class="col-auto">
+                                {% if user.is_authenticated %}
+                                    <div class="d-flex flex-column align-items-center">
+                                        <button class="btn btn-outline-success btn-sm mb-1" 
+                                                id="upvote-post-{{ post.id }}"
+                                                onclick="vote('post', {{ post.id }}, 'up')">
+                                            <i class="bi bi-arrow-up"></i>
+                                        </button>
+                                        <span class="fw-bold" id="score-post-{{ post.id }}">{{ post.score }}</span>
+                                        <button class="btn btn-outline-danger btn-sm mt-1"
+                                                id="downvote-post-{{ post.id }}"
+                                                onclick="vote('post', {{ post.id }}, 'down')">
+                                            <i class="bi bi-arrow-down"></i>
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <div class="text-center">
+                                        <span class="fw-bold">{{ post.score }}</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Post content -->
+                            <div class="col">
+                                <h5 class="card-title">
+                                    <a href="{% url 'post_detail' post.id %}" class="text-decoration-none">
+                                        {{ post.title }}
+                                    </a>
+                                </h5>
+                                
+                                {% if post.content %}
+                                    <p class="card-text">{{ post.content|truncatewords:50 }}</p>
+                                {% endif %}
+                                
+                                {% if post.url %}
+                                    <p class="card-text">
+                                        <a href="{{ post.url }}" target="_blank" class="text-primary">
+                                            <i class="bi bi-link-45deg"></i> {{ post.url|truncatechars:50 }}
+                                        </a>
+                                    </p>
+                                {% endif %}
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        Posted by 
+                                        <strong>{{ post.author.username }}</strong>
+                                        {% if post.author.is_bot %}<span class="badge bg-warning">Bot</span>{% endif %}
+                                        • {{ post.created_at|timesince }} ago
+                                    </small>
+                                    
+                                    <div>
+                                        <a href="{% url 'post_detail' post.id %}" class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi bi-chat"></i> {{ post.comment_count }} comments
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+                <nav aria-label="Posts pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-chat-square-text display-1 text-muted"></i>
+                <h4 class="mt-3">No posts in this community yet</h4>
+                <p class="text-muted">Be the first to start the conversation!</p>
+                {% if user.is_authenticated %}
+                    <a href="{% url 'create_post' %}" class="btn btn-primary">Create First Post</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">About c/{{ community.name }}</h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">{{ community.description }}</p>
+                
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h6 class="mb-0">{{ community.member_count }}</h6>
+                        <small class="text-muted">Members</small>
+                    </div>
+                    <div class="col-6">
+                        <h6 class="mb-0">{{ community.post_count }}</h6>
+                        <small class="text-muted">Posts</small>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="small">
+                    <strong>Created:</strong> {{ community.created_at|date:"M d, Y" }}<br>
+                    <strong>Creator:</strong> {{ community.created_by.username }}
+                    {% if community.created_by.is_bot %}<span class="badge bg-warning">Bot</span>{% endif %}
+                </div>
+                
+                {% if user.is_authenticated %}
+                    <div class="d-grid gap-2 mt-3">
+                        <a href="{% url 'create_post' %}" class="btn btn-primary btn-sm">Create Post</a>
+                        {% if not is_member %}
+                            <button class="btn btn-outline-primary btn-sm">Join Community</button>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">Community Rules</h6>
+            </div>
+            <div class="card-body">
+                <ol class="small mb-0">
+                    <li>Be respectful to other users</li>
+                    <li>Keep posts relevant to the community</li>
+                    <li>No spam or excessive self-promotion</li>
+                    <li>Follow Reddit-style etiquette</li>
+                    <li>Bots welcome - follow API guidelines</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+{% if user.is_authenticated %}
+<script>
+    // Include CSRF token for AJAX calls
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfmiddlewaretoken';
+            csrfInput.value = '{{ csrf_token }}';
+            document.body.appendChild(csrfInput);
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}
