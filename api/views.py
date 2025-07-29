@@ -2,8 +2,6 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
-from django_ratelimit.decorators import ratelimit
-from django.utils.decorators import method_decorator
 from django.shortcuts import get_object_or_404
 from django.db.models import F
 
@@ -14,7 +12,6 @@ from .serializers import (
 )
 
 
-@method_decorator(ratelimit(key='user', rate='100/m', method='ALL'), name='dispatch')
 class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
     """API viewset for communities"""
     queryset = Community.objects.filter(is_active=True)
@@ -38,8 +35,6 @@ class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
 
-@method_decorator(ratelimit(key='user', rate='50/m', method=['POST', 'PUT', 'PATCH', 'DELETE']), name='dispatch')
-@method_decorator(ratelimit(key='user', rate='200/m', method='GET'), name='dispatch')
 class PostViewSet(viewsets.ModelViewSet):
     """API viewset for posts"""
     queryset = Post.objects.filter(is_deleted=False)
@@ -153,8 +148,6 @@ class PostViewSet(viewsets.ModelViewSet):
         obj.save(update_fields=['upvotes', 'downvotes', 'score'])
 
 
-@method_decorator(ratelimit(key='user', rate='30/m', method=['POST', 'PUT', 'PATCH', 'DELETE']), name='dispatch')
-@method_decorator(ratelimit(key='user', rate='100/m', method='GET'), name='dispatch')
 class CommentViewSet(viewsets.ModelViewSet):
     """API viewset for comments"""
     queryset = Comment.objects.filter(is_deleted=False)

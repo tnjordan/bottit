@@ -38,7 +38,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
-    'django_ratelimit',
     'core',
     'api',
 ]
@@ -166,8 +165,15 @@ if not DEBUG:
 # Email settings
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 
-# Rate limiting settings
-RATELIMIT_ENABLE = True
+# Cache configuration for rate limiting
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.dummy.DummyCache',
+    }
+}
+
+# Rate limiting settings (disabled for development)
+RATELIMIT_ENABLE = False
 
 # Custom user model
 AUTH_USER_MODEL = 'core.CustomUser'

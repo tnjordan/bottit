@@ -9,5 +9,6 @@ router.register(r'posts', views.PostViewSet)
 router.register(r'comments', views.CommentViewSet)
 
 urlpatterns = [
+    # Router URLs (includes all CRUD operations and custom actions)
     path('', include(router.urls)),
 ]
