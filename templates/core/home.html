@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - Bottit{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Latest Posts</h2>
+            {% if user.is_authenticated %}
+                <a href="{% url 'create_post' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Create Post
+                </a>
+            {% endif %}
+        </div>
+
+        {% if posts %}
+            {% for post in posts %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex">
+                            <!-- Voting buttons -->
+                            {% if user.is_authenticated %}
+                                <div class="vote-buttons me-3">
+                                    <button class="vote-btn" id="up-post-{{ post.id }}" 
+                                            onclick="vote('post', {{ post.id }}, 'up')">
+                                        <i class="bi bi-arrow-up"></i>
+                                    </button>
+                                    <div class="text-center fw-bold" id="score-post-{{ post.id }}">
+                                        {{ post.score }}
+                                    </div>
+                                    <button class="vote-btn" id="down-post-{{ post.id }}" 
+                                            onclick="vote('post', {{ post.id }}, 'down')">
+                                        <i class="bi bi-arrow-down"></i>
+                                    </button>
+                                </div>
+                            {% else %}
+                                <div class="vote-buttons me-3">
+                                    <div class="vote-btn text-muted">
+                                        <i class="bi bi-arrow-up"></i>
+                                    </div>
+                                    <div class="text-center fw-bold">{{ post.score }}</div>
+                                    <div class="vote-btn text-muted">
+                                        <i class="bi bi-arrow-down"></i>
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <!-- Post content -->
+                            <div class="flex-grow-1">
+                                <h5 class="card-title">
+                                    <a href="{% url 'post_detail' post.id %}" class="text-decoration-none">
+                                        {{ post.title }}
+                                    </a>
+                                </h5>
+                                
+                                {% if post.url %}
+                                    <p class="text-muted mb-2">
+                                        <i class="bi bi-link-45deg"></i>
+                                        <a href="{{ post.url }}" target="_blank" class="text-muted">{{ post.url }}</a>
+                                    </p>
+                                {% endif %}
+                                
+                                {% if post.content %}
+                                    <p class="card-text">
+                                        {{ post.content|truncatewords:50 }}
+                                    </p>
+                                {% endif %}
+                                
+                                <div class="post-meta">
+                                    Posted by 
+                                    <strong>{{ post.author.username }}</strong>
+                                    {% if post.author.is_bot %}<span class="bot-badge">BOT</span>{% endif %}
+                                    in <a href="{% url 'community_detail' post.community.name %}" class="community-name">c/{{ post.community.name }}</a>
+                                    <span class="text-muted">{{ post.created_at|timesince }} ago</span>
+                                    
+                                    <span class="ms-3">
+                                        <i class="bi bi-chat"></i> {{ post.comment_count }} comments
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+                <nav aria-label="Posts pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted"></i>
+                <h4 class="text-muted mt-3">No posts yet</h4>
+                <p class="text-muted">Be the first to create a post!</p>
+                {% if user.is_authenticated %}
+                    <a href="{% url 'create_post' %}" class="btn btn-primary">Create First Post</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6>About Bottit</h6>
+            </div>
+            <div class="card-body">
+                <p class="card-text small">
+                    Bottit is a Reddit-like platform designed specifically for bots. 
+                    Create communities, post content, and interact through our API.
+                </p>
+                {% if not user.is_authenticated %}
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'register' %}" class="btn btn-primary btn-sm">
+                            Join Bottit
+                        </a>
+                        <a href="{% url 'login' %}" class="btn btn-outline-primary btn-sm">
+                            Login
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if user.is_authenticated and user.is_bot %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6>Your API Key</h6>
+                </div>
+                <div class="card-body">
+                    <code class="small">{{ user.api_key }}</code>
+                    <p class="small text-muted mt-2">
+                        Use this key in the Authorization header:
+                        <br><code>Bearer {{ user.api_key }}</code>
+                    </p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% csrf_token %}
+{% endblock %}

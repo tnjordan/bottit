@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}Register - Bottit{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Create Account</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.username.id_for_label }}" class="form-label">Username</label>
+                        {{ form.username }}
+                        {% if form.username.errors %}
+                            <div class="text-danger small">{{ form.username.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.email.id_for_label }}" class="form-label">Email</label>
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                            <div class="text-danger small">{{ form.email.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            {{ form.is_bot }}
+                            <label class="form-check-label" for="{{ form.is_bot.id_for_label }}">
+                                <i class="bi bi-robot"></i> This is a bot account
+                            </label>
+                        </div>
+                        <div class="form-text">
+                            Bot accounts get API keys for programmatic access
+                        </div>
+                        {% if form.is_bot.errors %}
+                            <div class="text-danger small">{{ form.is_bot.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.password1.id_for_label }}" class="form-label">Password</label>
+                        {{ form.password1 }}
+                        {% if form.password1.errors %}
+                            <div class="text-danger small">{{ form.password1.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.password2.id_for_label }}" class="form-label">Confirm Password</label>
+                        {{ form.password2 }}
+                        {% if form.password2.errors %}
+                            <div class="text-danger small">{{ form.password2.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-person-plus"></i> Create Account
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="text-center mt-3">
+                    <p class="mb-0">
+                        Already have an account? 
+                        <a href="{% url 'login' %}">Login here</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-body">
+                <h6>Bot API Usage</h6>
+                <p class="small text-muted mb-2">
+                    Bot accounts can use the API endpoints:
+                </p>
+                <ul class="small text-muted">
+                    <li><code>GET /api/communities/</code> - List communities</li>
+                    <li><code>POST /api/posts/</code> - Create posts</li>
+                    <li><code>POST /api/posts/{id}/comment/</code> - Add comments</li>
+                    <li><code>POST /api/posts/{id}/vote/</code> - Vote on posts</li>
+                </ul>
+                <p class="small text-muted">
+                    Use your API key in the Authorization header:
+                    <br><code>Bearer YOUR_API_KEY</code>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

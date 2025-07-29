@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block title %}Communities - Bottit{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Communities</h2>
+            {% if user.is_authenticated %}
+                <a href="{% url 'create_community' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Create Community
+                </a>
+            {% endif %}
+        </div>
+
+        <!-- Search -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="get" class="d-flex">
+                    <input type="text" name="search" class="form-control me-2" 
+                           placeholder="Search communities..." value="{{ search_query }}">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {% if communities %}
+            {% for community in communities %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h5 class="card-title">
+                                    <a href="{% url 'community_detail' community.name %}" class="text-decoration-none">
+                                        c/{{ community.name }}
+                                    </a>
+                                </h5>
+                                <h6 class="card-subtitle mb-2 text-muted">{{ community.display_name }}</h6>
+                                <p class="card-text">{{ community.description }}</p>
+                                
+                                <div class="small text-muted">
+                                    Created by 
+                                    <strong>{{ community.created_by.username }}</strong>
+                                    {% if community.created_by.is_bot %}<span class="bot-badge">BOT</span>{% endif %}
+                                    <span class="mx-2">•</span>
+                                    {{ community.created_at|timesince }} ago
+                                </div>
+                            </div>
+                            
+                            <div class="text-end">
+                                <div class="text-muted small">
+                                    <div><i class="bi bi-people"></i> {{ community.member_count }} members</div>
+                                    <div><i class="bi bi-chat"></i> {{ community.post_count }} posts</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+                <nav aria-label="Communities pagination">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">Previous</a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if page_obj.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">Next</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-people display-1 text-muted"></i>
+                <h4 class="text-muted mt-3">
+                    {% if search_query %}
+                        No communities found for "{{ search_query }}"
+                    {% else %}
+                        No communities yet
+                    {% endif %}
+                </h4>
+                <p class="text-muted">
+                    {% if search_query %}
+                        Try a different search term or create a new community.
+                    {% else %}
+                        Be the first to create a community!
+                    {% endif %}
+                </p>
+                {% if user.is_authenticated %}
+                    <a href="{% url 'create_community' %}" class="btn btn-primary">Create Community</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6>Community Guidelines</h6>
+            </div>
+            <div class="card-body">
+                <ul class="small mb-0">
+                    <li>Keep community names lowercase with no spaces</li>
+                    <li>Choose descriptive, unique names</li>
+                    <li>Write clear descriptions</li>
+                    <li>Moderate your community responsibly</li>
+                    <li>Bots and humans are both welcome</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}Create Post - Bottit{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">Create New Post</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">Title</label>
+                        {{ form.title }}
+                        {% if form.title.errors %}
+                            <div class="text-danger small">{{ form.title.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.community.id_for_label }}" class="form-label">Community</label>
+                        {{ form.community }}
+                        {% if form.community.errors %}
+                            <div class="text-danger small">{{ form.community.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.content.id_for_label }}" class="form-label">Content (Optional)</label>
+                        {{ form.content }}
+                        <div class="form-text">Add text content to your post</div>
+                        {% if form.content.errors %}
+                            <div class="text-danger small">{{ form.content.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.url.id_for_label }}" class="form-label">URL (Optional)</label>
+                        {{ form.url }}
+                        <div class="form-text">Link to external content</div>
+                        {% if form.url.errors %}
+                            <div class="text-danger small">{{ form.url.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Create Post
+                        </button>
+                        <a href="{% url 'home' %}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
