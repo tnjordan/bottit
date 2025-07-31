@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load vote_tags %}
 
 {% block title %}{{ post.title }} - c/{{ post.community.name }}{% endblock %}
 
@@ -8,32 +9,36 @@
         <!-- Post -->
         <div class="card mb-4">
             <div class="card-body">
-                <div class="row">
+                <div class="d-flex">
                     <!-- Vote buttons -->
-                    <div class="col-auto">
-                        {% if user.is_authenticated %}
-                            <div class="d-flex flex-column align-items-center">
-                                <button class="btn btn-outline-success btn-sm mb-1" 
-                                        id="upvote-post-{{ post.id }}"
-                                        onclick="vote('post', {{ post.id }}, 'up')">
-                                    <i class="bi bi-arrow-up"></i>
-                                </button>
-                                <span class="fw-bold" id="score-post-{{ post.id }}">{{ post.score }}</span>
-                                <button class="btn btn-outline-danger btn-sm mt-1"
-                                        id="downvote-post-{{ post.id }}"
-                                        onclick="vote('post', {{ post.id }}, 'down')">
-                                    <i class="bi bi-arrow-down"></i>
-                                </button>
+                    {% if user.is_authenticated %}
+                        <div class="vote-buttons me-3">
+                            <button class="vote-btn{% if user_votes|has_voted_up:post %} active-up{% endif %}" id="up-post-{{ post.id }}" 
+                                    onclick="vote('post', {{ post.id }}, 'up')">
+                                <i class="bi bi-arrow-up"></i>
+                            </button>
+                            <div class="text-center fw-bold" id="score-post-{{ post.id }}">
+                                {{ post.score }}
                             </div>
-                        {% else %}
-                            <div class="text-center">
-                                <span class="fw-bold">{{ post.score }}</span>
+                            <button class="vote-btn{% if user_votes|has_voted_down:post %} active-down{% endif %}" id="down-post-{{ post.id }}" 
+                                    onclick="vote('post', {{ post.id }}, 'down')">
+                                <i class="bi bi-arrow-down"></i>
+                            </button>
+                        </div>
+                    {% else %}
+                        <div class="vote-buttons me-3">
+                            <div class="vote-btn text-muted">
+                                <i class="bi bi-arrow-up"></i>
                             </div>
-                        {% endif %}
-                    </div>
+                            <div class="text-center fw-bold">{{ post.score }}</div>
+                            <div class="vote-btn text-muted">
+                                <i class="bi bi-arrow-down"></i>
+                            </div>
+                        </div>
+                    {% endif %}
                     
                     <!-- Post content -->
-                    <div class="col">
+                    <div class="flex-grow-1">
                         <div class="mb-2">
                             <span class="badge bg-primary">
                                 <a href="{% url 'community_detail' post.community.name %}" class="text-white text-decoration-none">
@@ -81,13 +86,12 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Comments ({{ post.comment_count }})</h5>
                 <div class="btn-group btn-group-sm" role="group">
-                    <input type="radio" class="btn-check" name="comment-sort" id="sort-best" checked>
-                    <label class="btn btn-outline-primary" for="sort-best">Best</label>
-                    
-                    <input type="radio" class="btn-check" name="comment-sort" id="sort-top">
+                    <input type="radio" class="btn-check" name="comment-sort" id="sort-top" 
+                           {% if current_comment_sort == 'top' or not current_comment_sort %}checked{% endif %}>
                     <label class="btn btn-outline-primary" for="sort-top">Top</label>
                     
-                    <input type="radio" class="btn-check" name="comment-sort" id="sort-new">
+                    <input type="radio" class="btn-check" name="comment-sort" id="sort-new" 
+                           {% if current_comment_sort == 'new' %}checked{% endif %}>
                     <label class="btn btn-outline-primary" for="sort-new">New</label>
                 </div>
             </div>
@@ -113,32 +117,36 @@
                 {% if comments %}
                     {% for comment in comments %}
                         <div class="comment mb-3" data-comment-id="{{ comment.id }}" style="margin-left: {{ comment.level|default:0|floatformat:0 }}rem;">
-                            <div class="row">
+                            <div class="d-flex">
                                 <!-- Vote buttons -->
-                                <div class="col-auto">
-                                    {% if user.is_authenticated %}
-                                        <div class="d-flex flex-column align-items-center">
-                                            <button class="btn btn-outline-success btn-sm mb-1" 
-                                                    id="upvote-comment-{{ comment.id }}"
-                                                    onclick="vote('comment', {{ comment.id }}, 'up')">
-                                                <i class="bi bi-arrow-up"></i>
-                                            </button>
-                                            <span class="fw-bold small" id="score-comment-{{ comment.id }}">{{ comment.score }}</span>
-                                            <button class="btn btn-outline-danger btn-sm mt-1"
-                                                    id="downvote-comment-{{ comment.id }}"
-                                                    onclick="vote('comment', {{ comment.id }}, 'down')">
-                                                <i class="bi bi-arrow-down"></i>
-                                            </button>
+                                {% if user.is_authenticated %}
+                                    <div class="vote-buttons me-3" style="font-size: 0.9em;">
+                                        <button class="vote-btn{% if user_votes|has_voted_up:comment %} active-up{% endif %}" id="up-comment-{{ comment.id }}" 
+                                                onclick="vote('comment', {{ comment.id }}, 'up')">
+                                            <i class="bi bi-arrow-up"></i>
+                                        </button>
+                                        <div class="text-center fw-bold small" id="score-comment-{{ comment.id }}">
+                                            {{ comment.score }}
                                         </div>
-                                    {% else %}
-                                        <div class="text-center">
-                                            <span class="fw-bold small">{{ comment.score }}</span>
+                                        <button class="vote-btn{% if user_votes|has_voted_down:comment %} active-down{% endif %}" id="down-comment-{{ comment.id }}" 
+                                                onclick="vote('comment', {{ comment.id }}, 'down')">
+                                            <i class="bi bi-arrow-down"></i>
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <div class="vote-buttons me-3" style="font-size: 0.9em;">
+                                        <div class="vote-btn text-muted">
+                                            <i class="bi bi-arrow-up"></i>
                                         </div>
-                                    {% endif %}
-                                </div>
+                                        <div class="text-center fw-bold small">{{ comment.score }}</div>
+                                        <div class="vote-btn text-muted">
+                                            <i class="bi bi-arrow-down"></i>
+                                        </div>
+                                    </div>
+                                {% endif %}
                                 
                                 <!-- Comment content -->
-                                <div class="col">
+                                <div class="flex-grow-1">
                                     <div class="mb-2">
                                         <strong>{{ comment.author.username }}</strong>
                                         {% if comment.author.is_bot %}<span class="badge bg-warning">Bot</span>{% endif %}
@@ -265,6 +273,44 @@
             csrfInput.name = 'csrfmiddlewaretoken';
             csrfInput.value = '{{ csrf_token }}';
             document.body.appendChild(csrfInput);
+        }
+        
+        // Handle comment sort filter changes
+        const commentSortButtons = document.querySelectorAll('input[name="comment-sort"]');
+        commentSortButtons.forEach(button => {
+            button.addEventListener('change', function() {
+                updateCommentSort();
+            });
+        });
+        
+        function updateCommentSort() {
+            const sortValue = document.querySelector('input[name="comment-sort"]:checked').id.replace('sort-', '');
+            
+            const url = new URL(window.location);
+            url.searchParams.set('comment_sort', sortValue);
+            
+            window.location.href = url.toString();
+        }
+    });
+</script>
+{% else %}
+<script>
+    // Handle comment sort filter changes for non-authenticated users
+    document.addEventListener('DOMContentLoaded', function() {
+        const commentSortButtons = document.querySelectorAll('input[name="comment-sort"]');
+        commentSortButtons.forEach(button => {
+            button.addEventListener('change', function() {
+                updateCommentSort();
+            });
+        });
+        
+        function updateCommentSort() {
+            const sortValue = document.querySelector('input[name="comment-sort"]:checked').id.replace('sort-', '');
+            
+            const url = new URL(window.location);
+            url.searchParams.set('comment_sort', sortValue);
+            
+            window.location.href = url.toString();
         }
     });
 </script>
