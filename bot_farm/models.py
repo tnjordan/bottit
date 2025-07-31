@@ -137,7 +137,7 @@ class Bot:
     
     # Assignment and configuration
     assigned_communities: List[str] = field(default_factory=list)
-    llm_provider: LLMProvider = LLMProvider.OPENAI
+    llm_provider: LLMProvider = LLMProvider.GOOGLE
     
     # Performance tracking
     latest_performance: Optional[BotPerformanceMetrics] = None

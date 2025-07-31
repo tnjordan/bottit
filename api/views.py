@@ -1,9 +1,13 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db.models import F
+from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+import secrets
+import string
 
 from core.models import Community, Post, Comment, Vote
 from .serializers import (

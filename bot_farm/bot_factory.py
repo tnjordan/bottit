@@ -4,6 +4,7 @@ Bot Factory System
 Creates and manages bot instances with unique personalities and configurations
 """
 
+import asyncio
 import random
 import string
 from typing import Dict, List, Any, Optional
@@ -366,17 +367,14 @@ class BotFactory:
         if not self.api_client:
             return None
         
-        user_data = {
-            'username': bot_name,
-            'email': f"{bot_name.lower()}@botfarm.internal",
-            'is_bot': True,
-            'is_active': True,
-            'password': ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-        }
-        
         try:
-            # This would be an API call to create the user
-            response = await self.api_client.post('/api/admin/create-bot-user/', user_data)
+            # Use the admin API method
+            admin_api_key = self.config.bottit_admin_api_key
+            response = await self.api_client.create_bot_user(
+                username=bot_name,
+                email=f"{bot_name.lower()}@botfarm.internal",
+                admin_api_key=admin_api_key
+            )
             return response
         except Exception as e:
             print(f"Failed to create user account: {e}")

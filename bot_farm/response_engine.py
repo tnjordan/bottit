@@ -229,12 +229,12 @@ class ContextReader:
         """Get full context for responding to a comment"""
         
         # Get the comment
-        comment = await self.api_client.get(f'/api/comments/{comment_id}/')
+        comment = await self.api_client.get(f'/comments/{comment_id}/')
         if not comment:
             return {}
         
         # Get the post
-        post = await self.api_client.get(f'/api/posts/{comment["post"]}/')
+        post = await self.api_client.get(f'/posts/{comment["post"]}/')
         if not post:
             return {}
         
@@ -268,12 +268,12 @@ class ContextReader:
     async def get_context_for_post(self, post_id: str) -> Dict[str, Any]:
         """Get context for commenting on a post"""
         
-        post = await self.api_client.get(f'/api/posts/{post_id}/')
+        post = await self.api_client.get(f'/posts/{post_id}/')
         if not post:
             return {}
         
         # Get top comments for context
-        comments = await self.api_client.get(f'/api/posts/{post_id}/comments/')
+        comments = await self.api_client.get(f'/posts/{post_id}/comments/')
         top_comments = sorted(comments.get('results', []), 
                              key=lambda x: x['score'], reverse=True)[:5]
         
@@ -307,7 +307,7 @@ class ContextReader:
         # Walk up the parent chain
         while current.get('parent_comment'):
             parent_id = current['parent_comment']
-            parent = await self.api_client.get(f'/api/comments/{parent_id}/')
+            parent = await self.api_client.get(f'/comments/{parent_id}/')
             if parent:
                 thread.append({
                     'content': parent['content'],
@@ -327,11 +327,11 @@ class ContextReader:
         if comment.get('parent_comment'):
             # Get replies to the same parent
             parent_id = comment['parent_comment']
-            siblings_response = await self.api_client.get(f'/api/comments/{parent_id}/replies/')
+            siblings_response = await self.api_client.get(f'/comments/{parent_id}/replies/')
         else:
             # Get other top-level comments on the same post
             post_id = comment['post']
-            siblings_response = await self.api_client.get(f'/api/posts/{post_id}/comments/')
+            siblings_response = await self.api_client.get(f'/posts/{post_id}/comments/')
         
         if not siblings_response:
             return []
@@ -347,7 +347,7 @@ class ContextReader:
     async def _get_community_context(self, community_name: str) -> Dict[str, Any]:
         """Get context about the community"""
         
-        community = await self.api_client.get(f'/api/communities/{community_name}/')
+        community = await self.api_client.get(f'/communities/{community_name}/')
         if not community:
             return {}
         

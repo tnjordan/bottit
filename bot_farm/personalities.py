@@ -27,9 +27,23 @@ class PersonalityTemplate:
         if customizations:
             base_config.update(customizations)
         
+        # Handle role conversion properly
+        role_value = base_config.get('role', BotRole.CONTENT_CREATOR.value)
+        if isinstance(role_value, str):
+            # Convert string to BotRole enum
+            role = None
+            for bot_role in BotRole:
+                if bot_role.value == role_value:
+                    role = bot_role
+                    break
+            if role is None:
+                role = BotRole.CONTENT_CREATOR  # fallback
+        else:
+            role = role_value
+        
         return PersonalityTraits(
             name=base_config.get('name', self.name),
-            role=BotRole(base_config.get('role', BotRole.CONTENT_CREATOR.value)),
+            role=role,
             communication_style=base_config.get('communication_style', 'casual and friendly'),
             expertise_areas=base_config.get('expertise_areas', []),
             response_length_preference=base_config.get('response_length_preference', 'medium'),

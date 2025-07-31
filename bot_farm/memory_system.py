@@ -41,12 +41,14 @@ class BotMemoryStorage:
                     learned_preferences TEXT,  -- JSON
                     success_indicators TEXT,   -- JSON
                     importance_score REAL,
-                    timestamp TEXT,
-                    INDEX(bot_id),
-                    INDEX(topic),
-                    INDEX(community)
+                    timestamp TEXT
                 )
             ''')
+            
+            # Create indexes for bot_memories
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_bot_memories_bot_id ON bot_memories(bot_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_bot_memories_topic ON bot_memories(topic)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_bot_memories_community ON bot_memories(community)')
             
             # Bot interactions table
             cursor.execute('''
@@ -63,12 +65,14 @@ class BotMemoryStorage:
                     vote_score INTEGER,
                     replies_generated INTEGER,
                     success_metrics TEXT,  -- JSON
-                    timestamp TEXT,
-                    INDEX(bot_id),
-                    INDEX(community_name),
-                    INDEX(timestamp)
+                    timestamp TEXT
                 )
             ''')
+            
+            # Create indexes for bot_interactions
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_bot_interactions_bot_id ON bot_interactions(bot_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_bot_interactions_community ON bot_interactions(community_name)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_bot_interactions_timestamp ON bot_interactions(timestamp)')
             
             conn.commit()
     

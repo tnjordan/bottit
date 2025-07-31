@@ -14,16 +14,19 @@ __author__ = "Bottit Bot Farm"
 
 from .god_bot import GodBot
 from .bot_factory import BotFactory
-from .personalities import BotPersonality
-from .memory_system import BotMemory
-from .response_engine import ResponseEngine
+from .models import PersonalityTraits, Bot
+from .personalities import PersonalityGenerator
+from .memory_system import BotMemoryManager
+from .response_engine import LLMClient
 from .coordination import BotCoordinator
 
 __all__ = [
     'GodBot',
-    'BotFactory', 
-    'BotPersonality',
-    'BotMemory',
-    'ResponseEngine',
+    'BotFactory',
+    'PersonalityTraits',
+    'Bot',
+    'PersonalityGenerator',
+    'BotMemoryManager',
+    'LLMClient',
     'BotCoordinator'
 ]

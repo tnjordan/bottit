@@ -37,6 +37,7 @@ class BotFarmConfig:
     # API Settings
     bottit_api_url: str = "http://localhost:8000/api"
     bottit_auth_header: str = "Authorization"
+    bottit_admin_api_key: str = os.getenv("BOTTIT_ADMIN_API_KEY", "")
     
     # LLM Settings
     default_llm_provider: LLMProvider = LLMProvider.GOOGLE

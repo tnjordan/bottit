@@ -7,18 +7,18 @@ Orchestrates the entire bot ecosystem, creating, managing, and optimizing bots
 import asyncio
 import json
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import asdict
 
-from .models import (
-    Bot, BotStatus, EcosystemHealth, PlatformAnalysis, 
-    BotPerformanceMetrics, BotRole
+from bot_farm.models import (
+    Bot, BotStatus, EcosystemHealth, PlatformAnalysis,
+    PersonalityTraits, BotPerformanceMetrics, InteractionType
 )
-from .bot_factory import BotFactory
-from .coordination import BotCoordinator
-from .memory_system import BotMemoryManager
-from .response_engine import ResponseEngine
-from .config import get_config
+from bot_farm.bot_factory import BotFactory
+from bot_farm.coordination import BotCoordinator, ActivityType
+from bot_farm.memory_system import BotMemoryManager
+from bot_farm.response_engine import ResponseEngine
+from bot_farm.config import get_config, BotRole
 
 
 class PlatformAnalyzer:
@@ -55,9 +55,13 @@ class PlatformAnalyzer:
     async def _analyze_community_activity(self) -> Dict[str, float]:
         """Analyze activity levels across communities"""
         
-        communities = await self.api_client.get('/api/communities/')
-        if not communities:
+        communities = await self.api_client.get('/communities/')
+        if not communities or not isinstance(communities, (list, dict)):
             return {}
+        
+        # Handle both list response and paginated response
+        if isinstance(communities, dict):
+            communities = communities.get('results', [])
         
         activity_scores = {}
         
@@ -94,6 +98,19 @@ class PlatformAnalyzer:
         
         return inactive
     
+    async def _identify_growing_communities(self) -> List[str]:
+        """Identify communities that are growing and might need more bots"""
+        
+        activity_scores = await self._analyze_community_activity()
+        
+        # Communities with activity score > 0.7 are considered growing
+        growing = [
+            community for community, score in activity_scores.items()
+            if score > 0.7
+        ]
+        
+        return growing
+    
     async def _identify_content_gaps(self) -> List[Dict[str, Any]]:
         """Identify topics lacking expert coverage"""
         
@@ -101,9 +118,13 @@ class PlatformAnalyzer:
         gaps = []
         
         # Get recent posts and analyze topics
-        recent_posts = await self.api_client.get('/api/posts/?limit=100')
-        if not recent_posts:
+        recent_posts = await self.api_client.get('/posts/?limit=100')
+        if not recent_posts or not isinstance(recent_posts, (list, dict)):
             return gaps
+        
+        # Handle both list response and paginated response
+        if isinstance(recent_posts, dict):
+            recent_posts = recent_posts.get('results', [])
         
         # Count questions vs expert responses by topic
         topic_analysis = await self._analyze_topic_coverage(recent_posts)
@@ -122,17 +143,80 @@ class PlatformAnalyzer:
         
         return gaps
     
+    async def _analyze_topic_coverage(self, posts: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        """Analyze topic coverage in posts"""
+        topic_analysis = {}
+        
+        for post in posts:
+            # Simple topic extraction based on title/content keywords
+            topic = self._extract_topic_from_post(post)
+            if not topic:
+                topic = 'general'
+            
+            if topic not in topic_analysis:
+                topic_analysis[topic] = {
+                    'questions': 0,
+                    'expert_responses': 0,
+                    'communities': set()
+                }
+            
+            # Check if post is a question
+            if self._is_question(post):
+                topic_analysis[topic]['questions'] += 1
+            
+            # Count expert responses (simplified - look for technical indicators)
+            if self._has_expert_response(post):
+                topic_analysis[topic]['expert_responses'] += 1
+            
+            # Track communities
+            if 'community' in post:
+                topic_analysis[topic]['communities'].add(post['community'])
+        
+        # Convert sets to lists for JSON serialization
+        for topic_data in topic_analysis.values():
+            topic_data['communities'] = list(topic_data['communities'])
+        
+        return topic_analysis
+    
+    def _extract_topic_from_post(self, post: Dict[str, Any]) -> str:
+        """Extract topic from post (simplified)"""
+        title = post.get('title', '').lower()
+        content = post.get('content', '').lower()
+        
+        # Simple keyword-based topic extraction
+        tech_keywords = ['python', 'javascript', 'programming', 'code', 'development', 'api', 'database']
+        for keyword in tech_keywords:
+            if keyword in title or keyword in content:
+                return keyword
+        
+        return 'general'
+    
+    def _is_question(self, post: Dict[str, Any]) -> bool:
+        """Check if post is a question"""
+        title = post.get('title', '').lower()
+        content = post.get('content', '').lower()
+        
+        question_indicators = ['?', 'how to', 'how do', 'what is', 'why', 'help', 'problem']
+        return any(indicator in title or indicator in content for indicator in question_indicators)
+    
+    def _has_expert_response(self, post: Dict[str, Any]) -> bool:
+        """Check if post has expert-level response (simplified)"""
+        content = post.get('content', '').lower()
+        
+        expert_indicators = ['documentation', 'best practice', 'solution', 'algorithm', 'implementation']
+        return any(indicator in content for indicator in expert_indicators)
+    
     async def _count_recent_posts(self, community_name: str, hours: int = 24) -> int:
         """Count recent posts in a community"""
         
-        posts = await self.api_client.get(f'/api/communities/{community_name}/posts/')
-        if not posts:
+        posts = await self.api_client.get(f'/communities/{community_name}/posts/')
+        if not posts or not isinstance(posts, dict):
             return 0
         
-        cutoff_time = datetime.now() - timedelta(hours=hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         recent_posts = [
             p for p in posts.get('results', [])
-            if datetime.fromisoformat(p['created_at'].replace('Z', '+00:00')) > cutoff_time
+            if 'created_at' in p and datetime.fromisoformat(p['created_at'].replace('Z', '+00:00')) > cutoff_time
         ]
         
         return len(recent_posts)
@@ -142,18 +226,71 @@ class PlatformAnalyzer:
         
         # This would need a community-specific comment endpoint
         # For now, approximate based on posts
-        posts = await self.api_client.get(f'/api/communities/{community_name}/posts/')
-        if not posts:
+        posts = await self.api_client.get(f'/communities/{community_name}/posts/')
+        if not posts or not isinstance(posts, dict):
             return 0
         
-        total_comments = 0
-        cutoff_time = datetime.now() - timedelta(hours=hours)
+        # Simple approximation - assume avg 3 comments per post
+        return len(posts.get('results', [])) * 3
+    
+    async def _count_active_users(self, community_name: str, hours: int = 24) -> int:
+        """Count active users in a community"""
         
-        for post in posts.get('results', [])[:20]:  # Check recent posts
-            if datetime.fromisoformat(post['created_at'].replace('Z', '+00:00')) > cutoff_time:
-                total_comments += post.get('comment_count', 0)
+        # Simplified implementation
+        posts = await self.api_client.get(f'/communities/{community_name}/posts/')
+        if not posts or not isinstance(posts, dict):
+            return 0
         
-        return total_comments
+        # Count unique authors
+        authors = set()
+        for post in posts.get('results', []):
+            if 'author' in post and isinstance(post['author'], dict):
+                authors.add(post['author'].get('username', ''))
+        
+        return len(authors)
+    
+    async def _identify_trending_topics(self) -> List[str]:
+        """Identify trending topics"""
+        
+        # Simplified implementation
+        recent_posts = await self.api_client.get('/posts/?limit=50')
+        if not recent_posts:
+            return []
+        
+        # Extract common words from titles (simplified)
+        topics = []
+        for post in recent_posts.get('results', []):
+            title = post.get('title', '').lower()
+            words = title.split()
+            topics.extend([w for w in words if len(w) > 4])
+        
+        # Return most common topics (simplified)
+        from collections import Counter
+        common = Counter(topics).most_common(5)
+        return [topic for topic, count in common]
+    
+    async def _identify_underserved_topics(self) -> List[str]:
+        """Identify topics that need more coverage"""
+        
+        # Simplified implementation
+        return ['programming', 'technology', 'science', 'philosophy']
+    
+    async def _calculate_avg_discussion_depth(self) -> float:
+        """Calculate average discussion depth"""
+        
+        # Simplified implementation
+        return 2.5  # Average comment depth
+    
+    async def _identify_facilitation_needs(self) -> List[str]:
+        """Identify communities needing facilitation"""
+        
+        activity_scores = await self._analyze_community_activity()
+        
+        # Communities with low activity need facilitation
+        return [
+            community for community, score in activity_scores.items()
+            if score < 0.4
+        ]
     
     def _generate_bot_recommendations(self, analysis: PlatformAnalysis) -> List[Dict[str, Any]]:
         """Generate specific bot creation recommendations"""
@@ -293,6 +430,43 @@ class BotPerformanceEvaluator:
             return "major_adjustments_needed"
         else:
             return "retire"
+    
+    async def _count_bot_posts(self, bot_id: str, days: int = 7) -> int:
+        """Count posts made by bot in last N days"""
+        # Simplified implementation
+        return 5  # Mock value
+    
+    async def _count_bot_votes(self, bot_id: str, days: int = 7) -> int:
+        """Count votes cast by bot in last N days"""
+        # Simplified implementation
+        return 15  # Mock value
+    
+    async def _calculate_avg_post_score(self, bot_id: str) -> float:
+        """Calculate average score of bot's posts"""
+        # Simplified implementation
+        return 2.5  # Mock value
+    
+    async def _evaluate_consistency(self, bot) -> float:
+        """Evaluate bot's consistency over time"""
+        # Simplified implementation
+        return 0.75  # Mock value
+    
+    async def _calculate_community_acceptance(self, bot) -> Dict[str, float]:
+        """Calculate acceptance scores in each community"""
+        # Simplified implementation
+        return {community: 0.7 for community in bot.assigned_communities}
+    
+    def _calculate_avg_quality_score(self, insights: Dict[str, Any]) -> float:
+        """Calculate average quality score from insights"""
+        return insights.get('avg_quality', 0.6)
+    
+    def _calculate_improvement_trend(self, insights: Dict[str, Any]) -> float:
+        """Calculate improvement trend"""
+        return insights.get('improvement_trend', 0.1)
+    
+    def _calculate_adaptation_score(self, bot) -> float:
+        """Calculate how well bot adapts to feedback"""
+        return 0.6  # Mock value
 
 
 class GodBot:
@@ -371,7 +545,10 @@ class GodBot:
                 # 4. Coordinate bot activities
                 await self._coordinate_bot_activities()
                 
-                # 5. Monitor ecosystem health
+                # 5. Execute scheduled bot activities
+                await self._execute_bot_activities()
+                
+                # 6. Monitor ecosystem health
                 await self._monitor_ecosystem_health()
                 
                 # 6. Self-evaluation and improvement
@@ -465,10 +642,18 @@ class GodBot:
         """Create a bot from a platform recommendation"""
         
         try:
+            # Convert string role to BotRole enum
+            suggested_role_str = recommendation.get('suggested_role', 'content_creator')
+            role = BotRole.CONTENT_CREATOR  # default
+            for bot_role in BotRole:
+                if bot_role.value == suggested_role_str:
+                    role = bot_role
+                    break
+            
             # Convert recommendation to bot specification
             spec = {
                 'creation_reason': recommendation['reason'],
-                'role': recommendation.get('suggested_role', 'content_creator'),
+                'role': role,
                 'priority': recommendation.get('priority', 5)
             }
             
@@ -517,7 +702,7 @@ class GodBot:
         # Deactivate the user account
         if self.api_client:
             try:
-                await self.api_client.patch(f'/api/users/{bot.user_id}/', {
+                await self.api_client.patch(f'/users/{bot.user_id}/', {
                     'is_active': False
                 })
             except Exception as e:
@@ -608,7 +793,189 @@ class GodBot:
             active_bots, platform_events
         )
         
+        # Add scheduled activities to the coordinator's queue
+        self.coordinator.activity_queue.extend(scheduled_activities)
+        
         print(f"📅 Scheduled {len(scheduled_activities)} bot activities")
+    
+    async def _execute_bot_activities(self):
+        """Execute scheduled bot activities"""
+        
+        # Get activities ready to execute
+        ready_activities = []
+        current_time = datetime.now(timezone.utc)
+        
+        for activity in self.coordinator.activity_queue[:]:  # Copy to avoid modification during iteration
+            # Handle timezone comparison safely
+            activity_time = activity.scheduled_time
+            if activity_time.tzinfo is None:
+                # Convert naive datetime to UTC
+                activity_time = activity_time.replace(tzinfo=timezone.utc)
+            
+            if activity_time <= current_time:
+                ready_activities.append(activity)
+                self.coordinator.activity_queue.remove(activity)
+        
+        if not ready_activities:
+            return
+        
+        print(f"🎬 Executing {len(ready_activities)} bot activities...")
+        
+        for activity in ready_activities:
+            try:
+                await self._execute_single_activity(activity)
+            except Exception as e:
+                print(f"❌ Failed to execute activity {activity.id}: {e}")
+    
+    async def _execute_single_activity(self, activity):
+        """Execute a single bot activity"""
+        
+        bot = self.managed_bots.get(activity.bot_id)
+        if not bot:
+            print(f"⚠️ Bot {activity.bot_id} not found for activity {activity.id}")
+            return
+        
+        print(f"🤖 {bot.name} performing {activity.activity_type.value}...")
+        
+        try:
+            if activity.activity_type == ActivityType.CREATE_POST:
+                await self._execute_create_post(bot, activity)
+            elif activity.activity_type == ActivityType.CREATE_COMMENT:
+                await self._execute_create_comment(bot, activity)
+            elif activity.activity_type == ActivityType.VOTE:
+                await self._execute_vote(bot, activity)
+            else:
+                print(f"⚠️ Unknown activity type: {activity.activity_type}")
+        
+        except Exception as e:
+            print(f"❌ Activity execution failed: {e}")
+    
+    async def _execute_create_post(self, bot: Bot, activity):
+        """Execute a create post activity"""
+        
+        from .response_engine import ResponseEngine
+        
+        # Generate post content using the response engine
+        response_engine = ResponseEngine()
+        
+        # Get a topic for the post based on the community
+        community = activity.params.get('community', 'general')
+        topic = activity.params.get('topic', 'general discussion')
+        
+        # Generate post title and content
+        context = {
+            'community': community,
+            'topic': topic,
+            'prompt': f"Create an engaging post about {topic} for the {community} community. Write a title and content that would spark discussion."
+        }
+        
+        response = await response_engine.generate_response(
+            bot=bot,
+            context=context,
+            interaction_type=InteractionType.POST
+        )
+        
+        if not response:
+            print(f"❌ Failed to generate post content for {bot.name}")
+            return
+        
+        # Split response into title and content (simple approach)
+        lines = response.strip().split('\n')
+        title = lines[0].replace('**', '').replace('#', '').strip()
+        content = '\n'.join(lines[1:]).strip() if len(lines) > 1 else response
+        
+        # Limit title length
+        if len(title) > 100:
+            title = title[:97] + "..."
+        
+        # Create the post
+        result = await self.api_client.create_post(
+            title=title,
+            content=content,
+            community_name=community,
+            bot_api_key=bot.api_key
+        )
+        
+        if result:
+            print(f"✅ {bot.name} created post: '{title}' in /{community}")
+            bot.last_active = datetime.now(timezone.utc)
+        else:
+            print(f"❌ Failed to create post for {bot.name}")
+    
+    async def _execute_create_comment(self, bot: Bot, activity):
+        """Execute a create comment activity"""
+        
+        from .response_engine import ResponseEngine
+        
+        # Generate comment content
+        response_engine = ResponseEngine()
+        
+        post_id = activity.params.get('post_id')
+        if not post_id:
+            print(f"❌ No post_id provided for comment activity")
+            return
+        
+        # Get post context
+        post_data = await self.api_client.get(f'/posts/{post_id}/')
+        if not post_data:
+            print(f"❌ Could not fetch post {post_id}")
+            return
+        
+        # Generate comment
+        context = {
+            'post_id': post_id,
+            'post_title': post_data.get('title', ''),
+            'post_content': post_data.get('content', ''),
+            'prompt': f"Write a thoughtful comment responding to this post:\nTitle: {post_data.get('title', '')}\nContent: {post_data.get('content', '')}"
+        }
+        
+        response = await response_engine.generate_response(
+            bot=bot,
+            context=context,
+            interaction_type=InteractionType.COMMENT
+        )
+        
+        if not response:
+            print(f"❌ Failed to generate comment for {bot.name}")
+            return
+        
+        # Create the comment
+        result = await self.api_client.create_comment(
+            post_id=post_id,
+            content=response,
+            bot_api_key=bot.api_key
+        )
+        
+        if result:
+            print(f"✅ {bot.name} commented on post {post_id}")
+            bot.last_active = datetime.now(timezone.utc)
+        else:
+            print(f"❌ Failed to create comment for {bot.name}")
+    
+    async def _execute_vote(self, bot: Bot, activity):
+        """Execute a vote activity"""
+        
+        content_type = activity.params.get('content_type')  # 'post' or 'comment'
+        content_id = activity.params.get('content_id')
+        vote_type = activity.params.get('vote_type', 'upvote')
+        
+        if not content_type or not content_id:
+            print(f"❌ Missing parameters for vote activity")
+            return
+        
+        # Create the vote
+        result = await self.api_client.vote(
+            content_type=content_type,
+            content_id=content_id,
+            vote_type=vote_type,
+            bot_api_key=bot.api_key
+        )
+        
+        if result:
+            print(f"✅ {bot.name} {vote_type}d {content_type} {content_id}")
+            bot.last_active = datetime.now(timezone.utc)
+        else:
+            print(f"❌ Failed to vote for {bot.name}")
     
     async def _get_platform_events(self) -> List[Dict[str, Any]]:
         """Get recent platform events that bots might respond to"""
@@ -617,7 +984,7 @@ class GodBot:
         events = []
         
         # Get recent posts
-        recent_posts = await self.api_client.get('/api/posts/?limit=50')
+        recent_posts = await self.api_client.get('/posts/?limit=50')
         if recent_posts:
             for post in recent_posts.get('results', []):
                 events.append({
@@ -743,3 +1110,31 @@ class GodBot:
             decision['timestamp'] = decision['timestamp'].isoformat()
         
         return recent
+
+
+if __name__ == "__main__":
+    import asyncio
+    import sys
+    import os
+    
+    # Add the project root to Python path
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
+    async def main():
+        god_bot = GodBot()
+        await god_bot.initialize()
+        
+        print("🌟 God Bot starting up...")
+        
+        try:
+            await god_bot.start()
+        except KeyboardInterrupt:
+            print("\n👋 God Bot shutting down...")
+            await god_bot.stop()
+        except Exception as e:
+            print(f"❌ God Bot error: {e}")
+            await god_bot.stop()
+    
+    asyncio.run(main())

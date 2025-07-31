@@ -115,19 +115,22 @@ class OrganicTimingEngine:
         
         # Activity level affects probability
         activity_probabilities = {
-            "low": 0.1,      # 10% chance per check
-            "moderate": 0.3,  # 30% chance per check
-            "high": 0.6       # 60% chance per check
+            "low": 0.4,      # Increased from 0.1 to 0.4
+            "moderate": 0.7,  # Increased from 0.3 to 0.7
+            "high": 0.9       # Increased from 0.6 to 0.9
         }
         
-        base_probability = activity_probabilities.get(bot.personality.activity_level, 0.3)
+        base_probability = activity_probabilities.get(bot.personality.activity_level, 0.7)
         
         # Adjust based on time since last activity
         time_since_active = current_time - bot.last_active
         hours_inactive = time_since_active.total_seconds() / 3600
         
+        # For new bots (less than 1 hour old), make them very active
+        if hours_inactive < 1:
+            base_probability = 0.95  # 95% chance for new bots
         # Increase probability if bot has been inactive for a while
-        if hours_inactive > 4:
+        elif hours_inactive > 4:
             base_probability *= 1.5
         elif hours_inactive > 8:
             base_probability *= 2.0
@@ -376,18 +379,19 @@ class BotCoordinator:
         for bot in bots:
             if not self.timing_engine.should_bot_be_active(bot, current_time):
                 continue
-            
-            # Content creators are more likely to create original posts
+                
+            # Make bots much more active initially
+            # Content creators are very likely to create original posts
             if bot.personality.role.value == 'content_creator':
-                creation_probability = 0.3
+                creation_probability = 0.8  # Increased from 0.3
             elif bot.personality.activity_level == 'high':
-                creation_probability = 0.2
+                creation_probability = 0.6  # Increased from 0.2
             else:
-                creation_probability = 0.1
+                creation_probability = 0.4  # Increased from 0.1
             
             if random.random() < creation_probability:
-                # Schedule post creation
-                delay = random.randint(300, 1800)  # 5-30 minutes
+                # Schedule post creation with shorter delay
+                delay = random.randint(30, 300)  # 30 seconds to 5 minutes (was 5-30 minutes)
                 scheduled_time = current_time + timedelta(seconds=delay)
                 
                 # Choose community based on bot preferences

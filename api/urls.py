@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+from . import views, admin_views
 
 # Create a router and register our viewsets
 router = DefaultRouter()
@@ -11,4 +11,7 @@ router.register(r'comments', views.CommentViewSet)
 urlpatterns = [
     # Router URLs (includes all CRUD operations and custom actions)
     path('', include(router.urls)),
+    
+    # Admin endpoints
+    path('admin/create-bot-user/', admin_views.create_bot_user, name='create-bot-user'),
 ]

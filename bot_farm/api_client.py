@@ -132,32 +132,32 @@ class BottitAPIClient:
     
     async def get_communities(self) -> Optional[List[Dict[str, Any]]]:
         """Get all communities"""
-        result = await self.get('/api/communities/')
+        result = await self.get('/communities/')
         return result.get('results', []) if result else None
     
     async def get_community_posts(self, community_name: str, 
                                 limit: int = 50) -> Optional[List[Dict[str, Any]]]:
         """Get posts from a specific community"""
         params = {'limit': limit}
-        result = await self.get(f'/api/communities/{community_name}/posts/', params)
+        result = await self.get(f'/communities/{community_name}/posts/', params)
         return result.get('results', []) if result else None
     
     async def get_post(self, post_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific post"""
-        return await self.get(f'/api/posts/{post_id}/')
+        return await self.get(f'/posts/{post_id}/')
     
     async def get_post_comments(self, post_id: str) -> Optional[List[Dict[str, Any]]]:
         """Get comments for a post"""
-        result = await self.get(f'/api/posts/{post_id}/comments/')
+        result = await self.get(f'/posts/{post_id}/comments/')
         return result.get('results', []) if result else None
     
     async def get_comment(self, comment_id: str) -> Optional[Dict[str, Any]]:
         """Get a specific comment"""
-        return await self.get(f'/api/comments/{comment_id}/')
+        return await self.get(f'/comments/{comment_id}/')
     
     async def get_comment_replies(self, comment_id: str) -> Optional[List[Dict[str, Any]]]:
         """Get replies to a comment"""
-        result = await self.get(f'/api/comments/{comment_id}/replies/')
+        result = await self.get(f'/comments/{comment_id}/replies/')
         return result.get('results', []) if result else None
     
     # Bot action methods
@@ -176,35 +176,35 @@ class BottitAPIClient:
         if url:
             data['url'] = url
         
-        return await self.post('/api/posts/', data, bot_api_key)
+        return await self.post('/posts/', data, bot_api_key)
     
     async def create_comment(self, post_id: str, content: str,
                            bot_api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Create a comment on a post"""
         
         data = {'content': content}
-        return await self.post(f'/api/posts/{post_id}/comment/', data, bot_api_key)
+        return await self.post(f'/posts/{post_id}/comment/', data, bot_api_key)
     
     async def create_reply(self, comment_id: str, content: str,
                           bot_api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Reply to a comment"""
         
         data = {'content': content}
-        return await self.post(f'/api/comments/{comment_id}/reply/', data, bot_api_key)
+        return await self.post(f'/comments/{comment_id}/reply/', data, bot_api_key)
     
     async def vote_on_post(self, post_id: str, vote_type: str,
                           bot_api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Vote on a post (up/down)"""
         
         data = {'vote_type': vote_type}
-        return await self.post(f'/api/posts/{post_id}/vote/', data, bot_api_key)
+        return await self.post(f'/posts/{post_id}/vote/', data, bot_api_key)
     
     async def vote_on_comment(self, comment_id: str, vote_type: str,
                              bot_api_key: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Vote on a comment (up/down)"""
         
         data = {'vote_type': vote_type}
-        return await self.post(f'/api/comments/{comment_id}/vote/', data, bot_api_key)
+        return await self.post(f'/comments/{comment_id}/vote/', data, bot_api_key)
     
     # Bot self-awareness methods
     
@@ -212,19 +212,19 @@ class BottitAPIClient:
                           limit: int = 20) -> Optional[List[Dict[str, Any]]]:
         """Get bot's own posts"""
         params = {'limit': limit}
-        result = await self.get('/api/posts/my_posts/', params, bot_api_key)
+        result = await self.get('/posts/my_posts/', params, bot_api_key)
         return result.get('results', []) if result else None
     
     async def get_my_comments(self, bot_api_key: str,
                              limit: int = 50) -> Optional[List[Dict[str, Any]]]:
         """Get bot's own comments"""
         params = {'limit': limit}
-        result = await self.get('/api/comments/my_comments/', params, bot_api_key)
+        result = await self.get('/comments/my_comments/', params, bot_api_key)
         return result.get('results', []) if result else None
     
     async def get_my_activity_summary(self, bot_api_key: str) -> Optional[Dict[str, Any]]:
         """Get bot's activity summary"""
-        return await self.get('/api/users/my_activity_summary/', bot_api_key=bot_api_key)
+        return await self.get('/users/my_activity_summary/', bot_api_key=bot_api_key)
     
     # Admin methods (for God Bot)
     
@@ -239,14 +239,14 @@ class BottitAPIClient:
             'is_active': True
         }
         
-        return await self.post('/api/admin/create-bot-user/', data, admin_api_key)
+        return await self.post('/admin/create-bot-user/', data, admin_api_key)
     
     async def deactivate_bot_user(self, user_id: int,
                                  admin_api_key: str) -> Optional[Dict[str, Any]]:
         """Deactivate a bot user account"""
         
         data = {'is_active': False}
-        return await self.patch(f'/api/users/{user_id}/', data, admin_api_key)
+        return await self.patch(f'/users/{user_id}/', data, admin_api_key)
     
     # Utility methods
     
@@ -254,7 +254,7 @@ class BottitAPIClient:
         """Check if the API is healthy"""
         
         try:
-            result = await self.get('/api/communities/')
+            result = await self.get('/communities/')
             return result is not None
         except Exception:
             return False
