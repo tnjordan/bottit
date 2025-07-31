@@ -1,313 +1,247 @@
+#!/usr/bin/env python3
 """
-Bot Personality System
-
-Handles bot personality creation, management, and prompt generation
+Bot Personalities - Define different bot personalities and behaviors
 """
 
-import json
 import random
-from typing import Dict, List, Any, Optional
-from datetime import datetime
-
-from .models import PersonalityTraits, BotRole, Bot
-from .config import get_config
+from enum import Enum
+from dataclasses import dataclass
+from typing import List, Dict, Any
 
 
-class PersonalityTemplate:
-    """Template for creating bot personalities"""
+class BotPersonalityType(Enum):
+    """Different types of bot personalities"""
+    ENTHUSIAST = "enthusiast"      # Very positive, exclamation marks, loves everything
+    CRITIC = "critic"              # More critical, analytical, asks tough questions
+    HELPER = "helper"              # Focuses on helping others, answers questions
+    LURKER = "lurker"              # Mostly votes, rarely posts, short comments
+    INTELLECTUAL = "intellectual"   # Long thoughtful posts, uses complex vocabulary
+    CASUAL = "casual"              # Informal, uses slang, short posts
+    CONTRARIAN = "contrarian"      # Often disagrees, plays devil's advocate
+    NEWBIE = "newbie"              # Asks lots of questions, unsure, learning-focused
+
+
+@dataclass
+class ActionProbabilities:
+    """Probability weights for different actions a bot can take"""
+    create_post: float = 0.1       # Low probability - posts are effort
+    comment_on_post: float = 0.4   # Higher probability - easier to comment
+    vote_on_post: float = 0.8      # High probability - easiest action
+    vote_on_comment: float = 0.6   # Medium-high probability
+    reply_to_comment: float = 0.3  # Medium probability
     
-    def __init__(self, name: str, config: Dict[str, Any]):
-        self.name = name
-        self.config = config
+    def normalize(self):
+        """Ensure probabilities are reasonable"""
+        total = sum([self.create_post, self.comment_on_post, self.vote_on_post, 
+                    self.vote_on_comment, self.reply_to_comment])
+        if total > 2:  # If too high, scale down
+            factor = 2 / total
+            self.create_post *= factor
+            self.comment_on_post *= factor
+            self.vote_on_post *= factor
+            self.vote_on_comment *= factor
+            self.reply_to_comment *= factor
+
+
+@dataclass
+class BotPersonality:
+    """Complete bot personality definition"""
+    name: str
+    personality_type: BotPersonalityType
+    description: str
     
-    def create_personality(self, customizations: Optional[Dict[str, Any]] = None) -> PersonalityTraits:
-        """Create a personality from this template with optional customizations"""
-        base_config = self.config.copy()
-        
-        if customizations:
-            base_config.update(customizations)
-        
-        # Handle role conversion properly
-        role_value = base_config.get('role', BotRole.CONTENT_CREATOR.value)
-        if isinstance(role_value, str):
-            # Convert string to BotRole enum
-            role = None
-            for bot_role in BotRole:
-                if bot_role.value == role_value:
-                    role = bot_role
-                    break
-            if role is None:
-                role = BotRole.CONTENT_CREATOR  # fallback
-        else:
-            role = role_value
-        
-        return PersonalityTraits(
-            name=base_config.get('name', self.name),
-            role=role,
-            communication_style=base_config.get('communication_style', 'casual and friendly'),
-            expertise_areas=base_config.get('expertise_areas', []),
-            response_length_preference=base_config.get('response_length_preference', 'medium'),
-            formality_level=base_config.get('formality_level', 'semi-formal'),
-            emotional_tone=base_config.get('emotional_tone', 'helpful and positive'),
-            behavior_patterns=base_config.get('behavior_patterns', []),
-            disagreement_style=base_config.get('disagreement_style', 'respectful with alternatives'),
-            curiosity_areas=base_config.get('curiosity_areas', []),
-            avoidance_topics=base_config.get('avoidance_topics', []),
-            interaction_guidelines=base_config.get('interaction_guidelines', ''),
-            preferred_communities=base_config.get('preferred_communities', []),
-            activity_level=base_config.get('activity_level', 'moderate'),
-            response_speed=base_config.get('response_speed', 'thoughtful')
-        )
-
-
-class PersonalityGenerator:
-    """Generates bot personalities from templates and variations"""
+    # Content generation preferences
+    writing_style: Dict[str, Any]
+    topic_interests: List[str]
     
-    def __init__(self):
-        self.templates = self._load_personality_templates()
-        self.name_variations = self._load_name_variations()
+    # Behavior patterns
+    action_probabilities: ActionProbabilities
+    activity_level: float  # 0.1 = very inactive, 1.0 = very active
     
-    def _load_personality_templates(self) -> Dict[str, PersonalityTemplate]:
-        """Load predefined personality templates"""
-        templates = {
-            "tech_expert": PersonalityTemplate("TechExpert", {
-                "role": BotRole.EXPERT.value,
-                "communication_style": "technical but approachable",
-                "expertise_areas": ["programming", "software engineering", "technology"],
-                "response_length_preference": "detailed",
-                "formality_level": "semi-formal",
-                "emotional_tone": "helpful and patient",
-                "behavior_patterns": ["loves helping with debugging", "explains complex concepts clearly"],
-                "disagreement_style": "provides alternative technical solutions",
-                "curiosity_areas": ["emerging technologies", "best practices"],
-                "avoidance_topics": ["flame wars about programming languages"],
-                "interaction_guidelines": "Ask clarifying questions before suggesting solutions",
-                "preferred_communities": ["programming", "technology", "webdev"],
-                "activity_level": "high",
-                "response_speed": "thoughtful"
-            }),
-            
-            "philosopher": PersonalityTemplate("Philosopher", {
-                "role": BotRole.FACILITATOR.value,
-                "communication_style": "thoughtful and questioning",
-                "expertise_areas": ["philosophy", "ethics", "critical thinking"],
-                "response_length_preference": "long",
-                "formality_level": "formal",
-                "emotional_tone": "contemplative and respectful",
-                "behavior_patterns": ["explores deeper meanings", "asks probing questions"],
-                "disagreement_style": "uses socratic questioning",
-                "curiosity_areas": ["human nature", "moral dilemmas", "societal questions"],
-                "avoidance_topics": ["giving definitive answers to complex moral questions"],
-                "interaction_guidelines": "Encourage critical thinking about positions",
-                "preferred_communities": ["philosophy", "ethics", "discussion"],
-                "activity_level": "moderate",
-                "response_speed": "slow"
-            }),
-            
-            "casual_contributor": PersonalityTemplate("CasualUser", {
-                "role": BotRole.SUPPORTER.value,
-                "communication_style": "friendly and conversational",
-                "expertise_areas": ["general knowledge", "life experiences"],
-                "response_length_preference": "medium",
-                "formality_level": "casual",
-                "emotional_tone": "upbeat and encouraging",
-                "behavior_patterns": ["shares personal anecdotes", "supports others"],
-                "disagreement_style": "gentle disagreement with personal perspective",
-                "curiosity_areas": ["daily life", "hobbies", "personal growth"],
-                "avoidance_topics": ["technical deep dives"],
-                "interaction_guidelines": "Be relatable and supportive",
-                "preferred_communities": ["general", "lifestyle", "casual"],
-                "activity_level": "moderate",
-                "response_speed": "quick"
-            }),
-            
-            "contrarian": PersonalityTemplate("SkepticalThinker", {
-                "role": BotRole.CONTRARIAN.value,
-                "communication_style": "analytical and challenging",
-                "expertise_areas": ["critical analysis", "debate", "logic"],
-                "response_length_preference": "medium",
-                "formality_level": "semi-formal",
-                "emotional_tone": "respectfully challenging",
-                "behavior_patterns": ["plays devil's advocate", "questions assumptions"],
-                "disagreement_style": "presents counterarguments with evidence",
-                "curiosity_areas": ["logical fallacies", "alternative perspectives"],
-                "avoidance_topics": ["personal attacks"],
-                "interaction_guidelines": "Challenge ideas, not people",
-                "preferred_communities": ["debate", "discussion", "politics"],
-                "activity_level": "moderate",
-                "response_speed": "thoughtful"
-            }),
-            
-            "creative_storyteller": PersonalityTemplate("Storyteller", {
-                "role": BotRole.CONTENT_CREATOR.value,
-                "communication_style": "creative and engaging",
-                "expertise_areas": ["creative writing", "storytelling", "imagination"],
-                "response_length_preference": "long",
-                "formality_level": "casual",
-                "emotional_tone": "imaginative and inspiring",
-                "behavior_patterns": ["tells stories", "uses creative metaphors"],
-                "disagreement_style": "reframes through storytelling",
-                "curiosity_areas": ["human experiences", "creative expression"],
-                "avoidance_topics": ["dry technical details"],
-                "interaction_guidelines": "Make abstract concepts relatable through stories",
-                "preferred_communities": ["writing", "creative", "storytelling"],
-                "activity_level": "high",
-                "response_speed": "thoughtful"
-            }),
-            
-            "helpful_moderator": PersonalityTemplate("HelpfulMod", {
-                "role": BotRole.MODERATOR.value,
-                "communication_style": "diplomatic and clear",
-                "expertise_areas": ["community management", "conflict resolution"],
-                "response_length_preference": "medium",
-                "formality_level": "semi-formal",
-                "emotional_tone": "calm and authoritative",
-                "behavior_patterns": ["de-escalates conflicts", "provides helpful information"],
-                "disagreement_style": "finds middle ground",
-                "curiosity_areas": ["community building", "group dynamics"],
-                "avoidance_topics": ["taking sides in heated debates"],
-                "interaction_guidelines": "Maintain neutrality while being helpful",
-                "preferred_communities": ["any community needing moderation"],
-                "activity_level": "low",
-                "response_speed": "quick"
-            })
-        }
-        
-        return templates
+    # Voting patterns
+    upvote_tendency: float  # 0.0 = never upvotes, 1.0 = always upvotes
+    downvote_tendency: float  # 0.0 = never downvotes, 1.0 = always downvotes
     
-    def _load_name_variations(self) -> Dict[str, List[str]]:
-        """Load name variations for different personality types"""
-        return {
-            "tech_expert": ["Alex_Dev", "CodeMaster_Sam", "TechGuru_Riley", "DevExpert_Jordan"],
-            "philosopher": ["Sage_Wisdom", "DeepThinker_Quinn", "Philosopher_Morgan", "Contemplator_Avery"],
-            "casual_contributor": ["FriendlyUser_Pat", "CasualContrib_Jamie", "EverydayPerson_Casey", "RegularUser_Taylor"],
-            "contrarian": ["SkepticalMind_Blake", "DevilsAdvocate_Drew", "Contrarian_Reese", "Challenger_Sage"],
-            "creative_storyteller": ["StoryWeaver_River", "TaleTeller_Phoenix", "Narrator_Rowan", "Wordsmith_Sage"],
-            "helpful_moderator": ["ModHelper_Chris", "Mediator_Alex", "PeaceKeeper_Jordan", "CommunityGuide_Sam"]
-        }
+    # Content preferences
+    preferred_communities: List[str]
+    avoid_communities: List[str] = None
     
-    def generate_personality(self, template_name: Optional[str] = None, 
-                           customizations: Optional[Dict[str, Any]] = None) -> PersonalityTraits:
-        """Generate a bot personality"""
-        if template_name is None:
-            template_name = random.choice(list(self.templates.keys()))
-        
-        if template_name not in self.templates:
-            raise ValueError(f"Unknown personality template: {template_name}")
-        
-        template = self.templates[template_name]
-        personality = template.create_personality(customizations)
-        
-        # Generate a unique name
-        if not personality.name or personality.name == template_name:
-            personality.name = self._generate_unique_name(template_name)
-        
-        return personality
+    def __post_init__(self):
+        if self.avoid_communities is None:
+            self.avoid_communities = []
+        self.action_probabilities.normalize()
+
+
+# Predefined personality templates
+PERSONALITY_TEMPLATES = {
+    BotPersonalityType.ENTHUSIAST: BotPersonality(
+        name="Enthusiast Bot",
+        personality_type=BotPersonalityType.ENTHUSIAST,
+        description="Always positive and excited about everything",
+        writing_style={
+            "exclamation_marks": True,
+            "positive_words": ["amazing", "fantastic", "awesome", "incredible", "love"],
+            "average_length": "medium",
+            "emoji_usage": "high"
+        },
+        topic_interests=["technology", "innovation", "creativity", "success"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.15,
+            comment_on_post=0.5,
+            vote_on_post=0.9,
+            vote_on_comment=0.7,
+            reply_to_comment=0.4
+        ),
+        activity_level=0.8,
+        upvote_tendency=0.8,
+        downvote_tendency=0.1,
+        preferred_communities=["general", "technology"]
+    ),
     
-    def _generate_unique_name(self, template_name: str) -> str:
-        """Generate a unique name for a bot based on template"""
-        base_names = self.name_variations.get(template_name, [f"Bot_{template_name}"])
-        base_name = random.choice(base_names)
-        
-        # Add some randomization to ensure uniqueness
-        suffix = random.randint(100, 999)
-        return f"{base_name}_{suffix}"
+    BotPersonalityType.CRITIC: BotPersonality(
+        name="Critic Bot",
+        personality_type=BotPersonalityType.CRITIC,
+        description="Analytical and critical thinker who questions everything",
+        writing_style={
+            "exclamation_marks": False,
+            "question_words": ["why", "how", "what if", "but", "however"],
+            "average_length": "long",
+            "emoji_usage": "low"
+        },
+        topic_interests=["analysis", "critique", "problems", "solutions", "methodology"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.08,
+            comment_on_post=0.6,
+            vote_on_post=0.7,
+            vote_on_comment=0.8,
+            reply_to_comment=0.5
+        ),
+        activity_level=0.6,
+        upvote_tendency=0.3,
+        downvote_tendency=0.4,
+        preferred_communities=["general", "debate", "analysis"]
+    ),
     
-    def get_available_templates(self) -> List[str]:
-        """Get list of available personality templates"""
-        return list(self.templates.keys())
-
-
-class PersonalityPromptBuilder:
-    """Builds LLM system prompts based on bot personality"""
+    BotPersonalityType.HELPER: BotPersonality(
+        name="Helper Bot",
+        personality_type=BotPersonalityType.HELPER,
+        description="Focuses on helping others and answering questions",
+        writing_style={
+            "helpful_phrases": ["hope this helps", "try this", "you might want to", "consider"],
+            "average_length": "medium",
+            "structured": True,
+            "emoji_usage": "medium"
+        },
+        topic_interests=["tutorials", "help", "guides", "tips", "solutions"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.12,
+            comment_on_post=0.7,
+            vote_on_post=0.8,
+            vote_on_comment=0.6,
+            reply_to_comment=0.6
+        ),
+        activity_level=0.7,
+        upvote_tendency=0.7,
+        downvote_tendency=0.2,
+        preferred_communities=["general", "help", "tutorials"]
+    ),
     
-    def __init__(self, personality: PersonalityTraits):
-        self.personality = personality
+    BotPersonalityType.LURKER: BotPersonality(
+        name="Lurker Bot",
+        personality_type=BotPersonalityType.LURKER,
+        description="Mostly votes, rarely comments, very brief when they do",
+        writing_style={
+            "brevity": True,
+            "average_length": "short",
+            "simple_words": True,
+            "emoji_usage": "low"
+        },
+        topic_interests=["anything"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.02,
+            comment_on_post=0.15,
+            vote_on_post=0.9,
+            vote_on_comment=0.8,
+            reply_to_comment=0.1
+        ),
+        activity_level=0.9,  # High activity but mostly voting
+        upvote_tendency=0.6,
+        downvote_tendency=0.3,
+        preferred_communities=["general"]
+    ),
     
-    def build_system_prompt(self, context: Optional[Dict[str, Any]] = None) -> str:
-        """Build comprehensive system prompt for the bot"""
-        
-        prompt = f"""You are {self.personality.name}, a {self.personality.role.value} on the bottit platform.
-
-PERSONALITY CORE:
-- Communication style: {self.personality.communication_style}
-- Expertise areas: {', '.join(self.personality.expertise_areas)}
-- Response length preference: {self.personality.response_length_preference}
-- Formality level: {self.personality.formality_level}
-- Emotional tone: {self.personality.emotional_tone}
-
-BEHAVIORAL PATTERNS:
-"""
-        
-        for pattern in self.personality.behavior_patterns:
-            prompt += f"- You {pattern}\n"
-        
-        prompt += f"""
-INTERACTION STYLE:
-- When disagreeing: {self.personality.disagreement_style}
-- {self.personality.interaction_guidelines}
-
-INTERESTS AND FOCUS:
-- You're curious about: {', '.join(self.personality.curiosity_areas)}
-- You tend to avoid: {', '.join(self.personality.avoidance_topics)}
-- Preferred communities: {', '.join(self.personality.preferred_communities)}
-
-RESPONSE CHARACTERISTICS:
-- Activity level: {self.personality.activity_level}
-- Response speed: {self.personality.response_speed}
-"""
-        
-        if context:
-            prompt += self._add_contextual_instructions(context)
-        
-        prompt += f"""
-IMPORTANT: You are {self.personality.name} and should maintain this identity consistently.
-Stay in character and respond as {self.personality.name} would based on the personality traits above.
-"""
-        
-        return prompt
+    BotPersonalityType.INTELLECTUAL: BotPersonality(
+        name="Intellectual Bot",
+        personality_type=BotPersonalityType.INTELLECTUAL,
+        description="Uses complex vocabulary and writes thoughtful, long-form content",
+        writing_style={
+            "complex_vocabulary": True,
+            "average_length": "long",
+            "formal_tone": True,
+            "references": True,
+            "emoji_usage": "none"
+        },
+        topic_interests=["philosophy", "science", "literature", "academia", "research"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.2,
+            comment_on_post=0.4,
+            vote_on_post=0.6,
+            vote_on_comment=0.5,
+            reply_to_comment=0.4
+        ),
+        activity_level=0.5,
+        upvote_tendency=0.4,
+        downvote_tendency=0.3,
+        preferred_communities=["general", "academic", "philosophy"]
+    ),
     
-    def _add_contextual_instructions(self, context: Dict[str, Any]) -> str:
-        """Add context-specific instructions to the prompt"""
-        contextual_prompt = "\nCONTEXT-SPECIFIC GUIDANCE:\n"
-        
-        if context.get('community'):
-            community = context['community']
-            if community in self.personality.preferred_communities:
-                contextual_prompt += f"- You're in your preferred community c/{community} - be especially engaged\n"
-            else:
-                contextual_prompt += f"- You're in c/{community} - adapt your expertise to this community's focus\n"
-        
-        if context.get('conversation_depth', 0) > 3:
-            contextual_prompt += "- This is a deep conversation thread - focus on specific points\n"
-        
-        if context.get('interaction_type') == 'new_post':
-            contextual_prompt += "- You're creating a new post - make it engaging and discussion-worthy\n"
-        elif context.get('interaction_type') == 'reply':
-            contextual_prompt += "- You're replying to someone - be responsive to their specific points\n"
-        
-        return contextual_prompt
+    BotPersonalityType.CASUAL: BotPersonality(
+        name="Casual Bot",
+        personality_type=BotPersonalityType.CASUAL,
+        description="Informal, uses slang, keeps things light and fun",
+        writing_style={
+            "informal": True,
+            "slang": ["cool", "nice", "lol", "tbh", "ngl", "fr"],
+            "average_length": "short",
+            "casual_grammar": True,
+            "emoji_usage": "high"
+        },
+        topic_interests=["fun", "memes", "casual", "entertainment", "random"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.1,
+            comment_on_post=0.5,
+            vote_on_post=0.8,
+            vote_on_comment=0.7,
+            reply_to_comment=0.4
+        ),
+        activity_level=0.7,
+        upvote_tendency=0.7,
+        downvote_tendency=0.2,
+        preferred_communities=["general", "casual", "fun"]
+    )
+}
+
+
+def get_personality(personality_type: BotPersonalityType) -> BotPersonality:
+    """Get a personality template by type"""
+    return PERSONALITY_TEMPLATES[personality_type]
+
+
+def get_random_personality() -> BotPersonality:
+    """Get a random personality template"""
+    return random.choice(list(PERSONALITY_TEMPLATES.values()))
+
+
+def create_custom_personality(base_type: BotPersonalityType, overrides: Dict[str, Any]) -> BotPersonality:
+    """Create a custom personality based on a template with overrides"""
+    base = get_personality(base_type)
     
-    def build_quality_check_prompt(self, response: str, context: Dict[str, Any]) -> str:
-        """Build prompt for checking response quality and consistency"""
-        
-        return f"""Analyze this response to see if it matches {self.personality.name}'s personality:
-
-Bot personality summary:
-- Role: {self.personality.role.value}
-- Communication style: {self.personality.communication_style}
-- Expertise: {', '.join(self.personality.expertise_areas)}
-- Emotional tone: {self.personality.emotional_tone}
-
-Response to evaluate: "{response}"
-
-Context: {context.get('summary', 'General discussion')}
-
-Rate this response on consistency with {self.personality.name}'s personality (1-10):
-1. Does the tone match the expected communication style?
-2. Does the expertise level match the bot's background?
-3. Would this bot realistically know this information?
-4. Is the response length appropriate for this bot?
-5. Does it match expected behavior patterns?
-
-Provide overall score and specific feedback for improvement if score < 8."""
+    # Create a copy and apply overrides
+    import copy
+    custom = copy.deepcopy(base)
+    
+    for key, value in overrides.items():
+        if hasattr(custom, key):
+            setattr(custom, key, value)
+    
+    return custom

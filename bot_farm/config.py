@@ -1,94 +1,66 @@
 """
 Bot Farm Configuration
-
-Central configuration for all bot farm components
 """
 
-import os
-from pathlib import Path
-from dotenv import load_dotenv
-from typing import Dict, List, Any
-from dataclasses import dataclass, field
-from enum import Enum
-
-# Load environment variables from parent directory's .env file
-parent_dir = Path(__file__).parent.parent
-env_path = parent_dir / '.env'
-load_dotenv(env_path)
-
-class BotRole(Enum):
-    """Available bot roles"""
-    CONTENT_CREATOR = "content_creator"
-    EXPERT = "expert"
-    FACILITATOR = "facilitator" 
-    CONTRARIAN = "contrarian"
-    SUPPORTER = "supporter"
-    MODERATOR = "moderator"
-    LURKER = "lurker"
-
-class LLMProvider(Enum):
-    """Supported LLM providers"""
-    GOOGLE = "google"
-
-@dataclass
-class BotFarmConfig:
-    """Main configuration for bot farm"""
-    
-    # API Settings
-    bottit_api_url: str = "http://localhost:8000/api"
-    bottit_auth_header: str = "Authorization"
-    bottit_admin_api_key: str = os.getenv("BOTTIT_ADMIN_API_KEY", "")
-    
-    # LLM Settings
-    default_llm_provider: LLMProvider = LLMProvider.GOOGLE
-    llm_providers: Dict[LLMProvider, Dict[str, Any]] = field(default_factory=lambda: {
-        LLMProvider.GOOGLE: {
-            "api_key": os.getenv("GEMINI_API_KEY"),
-            "model": "gemini-1.5-flash",
-            "max_tokens": 4000,
-            "temperature": 0.8
+# Bot personalities and configurations
+BOT_CONFIGS = {
+    "enthusiast_alice": {
+        "personality_type": "enthusiast",
+        "custom_overrides": {
+            "activity_level": 0.9,  # Very active
+            "preferred_communities": ["general", "technology", "innovation"]
         }
-    })
-    
-    # Bot Behavior Settings
-    max_bots_per_community: int = 5
-    max_bot_responses_per_thread: int = 2
-    min_response_delay_seconds: int = 30
-    max_response_delay_seconds: int = 300
-    
-    # Performance Settings
-    bot_performance_check_interval: int = 3600  # 1 hour
-    bot_retirement_threshold: float = 0.3
-    bot_optimization_threshold: float = 0.6
-    
-    # God Bot Settings
-    god_bot_check_interval: int = 300  # 5 minutes
-    ecosystem_analysis_interval: int = 1800  # 30 minutes
-    max_managed_bots: int = 100
-    min_managed_bots: int = 10
-    
-    # Memory & Context Settings
-    max_conversation_history: int = 100
-    max_context_tokens: int = 3000
-    memory_cleanup_days: int = 30
-    
-    # Quality Control
-    min_response_quality_score: float = 0.6
-    max_similarity_threshold: float = 0.8
-    content_filter_enabled: bool = True
+    },
+    "critic_bob": {
+        "personality_type": "critic",
+        "custom_overrides": {
+            "activity_level": 0.6,  # Moderate activity
+            "preferred_communities": ["general", "debate"]
+        }
+    },
+    "helper_charlie": {
+        "personality_type": "helper",
+        "custom_overrides": {
+            "activity_level": 0.8,  # High activity for helping
+            "preferred_communities": ["general", "help", "questions"]
+        }
+    },
+    "lurker_diana": {
+        "personality_type": "lurker",
+        "custom_overrides": {
+            "activity_level": 1.0,  # Always active but mostly voting
+            "upvote_tendency": 0.8,  # Likes to upvote
+        }
+    },
+    "casual_eve": {
+        "personality_type": "casual",
+        "custom_overrides": {
+            "activity_level": 0.7,
+            "preferred_communities": ["general", "casual", "random"]
+        }
+    },
+    "intellectual_frank": {
+        "personality_type": "intellectual",
+        "custom_overrides": {
+            "activity_level": 0.4,  # Less frequent but more thoughtful
+            "preferred_communities": ["general", "science", "philosophy"]
+        }
+    }
+}
 
-# Global configuration instance
-config = BotFarmConfig()
+# Farm operation settings
+FARM_SETTINGS = {
+    "cycle_interval": 60,  # seconds between cycles
+    "max_concurrent_bots": 5,  # max bots running simultaneously
+    "content_fetch_limit": 20,  # max posts/comments to fetch
+    "enable_logging": True,
+    "log_file": "bot_farm.log"
+}
 
-def update_config(**kwargs):
-    """Update configuration values"""
-    global config
-    for key, value in kwargs.items():
-        if hasattr(config, key):
-            setattr(config, key, value)
-        else:
-            raise ValueError(f"Unknown configuration key: {key}")
-
-def get_config() -> BotFarmConfig:
-    """Get current configuration"""
-    return config
+# Safety settings
+SAFETY_SETTINGS = {
+    "max_posts_per_bot_per_hour": 2,  # Prevent spam
+    "max_comments_per_bot_per_hour": 10,
+    "min_action_interval": 30,  # seconds between actions for same bot
+    "enable_rate_limiting": True
+}

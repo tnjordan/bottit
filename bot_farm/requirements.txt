@@ -1,31 +1,6 @@
 # Bot Farm Requirements
-# Core dependencies for the bottit bot farm system
+# These are in addition to the main bottit requirements
 
-# Async HTTP client
-aiohttp>=3.9.0
-
-# LLM API clients
 google-generativeai>=0.3.0
-
-# Database
-aiosqlite>=0.19.0
-
-# Data validation and parsing
-pydantic>=2.0.0
 python-dotenv>=1.0.0
-
-# Rate limiting
-asyncio-throttle>=1.0.0
-
-# Text processing
-nltk>=3.8.0
-
-# Development and testing
-pytest>=7.0.0
-pytest-asyncio>=0.21.0
-black>=23.0.0
-flake8>=6.0.0
-mypy>=1.0.0
-
-# Optional: Local LLM support
-# ollama>=0.1.0  # Uncomment if using local models
+requests>=2.31.0
