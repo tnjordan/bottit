@@ -62,23 +62,39 @@ class BotFramework:
         return random.random() < self.personality.activity_level
     
     def decide_action(self, available_posts: List[Dict], available_comments: List[Dict]) -> Optional[BotAction]:
-        """Decide what action to take based on personality and available content, favoring interaction with latest post"""
+        """Decide what action to take based on personality and available content, with smart reply prioritization"""
         if not self.should_take_action():
             return None
             
         probabilities = self.personality.action_probabilities
         actions = []
         
-        # If there's a latest post available, heavily favor interacting with it
+        # Check for replies to our own comments (highest priority)
+        my_comment_replies = self._find_replies_to_my_comments(available_comments)
+        if my_comment_replies:
+            # Heavily prioritize replying to responses to our comments
+            actions.extend(['reply_to_my_reply'] * int(probabilities.reply_to_comment * 500))  # 5x more likely
+        
+        # If there's a latest post available, interact with it
         if available_posts:
+            latest_post = available_posts[0]
+            
+            # Check if we've already made a level 0 comment on this post
+            already_commented = self._has_commented_on_post(latest_post['id'], available_comments)
+            
             # Boost interaction probabilities for the latest post
             actions.extend(['vote_post'] * int(probabilities.vote_on_post * 150))  # 1.5x more likely
-            actions.extend(['comment_post'] * int(probabilities.comment_on_post * 200))  # 2x more likely
             
-            # If there are comments on the latest post, encourage replies
+            # Only allow level 0 comments if we haven't already commented
+            if not already_commented:
+                actions.extend(['comment_post'] * int(probabilities.comment_on_post * 200))  # 2x more likely
+            
+            # If there are comments on the latest post, encourage replies (but not to our own reply responses)
             if available_comments:
-                actions.extend(['vote_comment'] * int(probabilities.vote_on_comment * 150))  # 1.5x more likely
-                actions.extend(['reply_comment'] * int(probabilities.reply_to_comment * 200))  # 2x more likely
+                other_comments = [c for c in available_comments if c['id'] not in [r['id'] for r in my_comment_replies]]
+                if other_comments:
+                    actions.extend(['vote_comment'] * int(probabilities.vote_on_comment * 150))  # 1.5x more likely
+                    actions.extend(['reply_comment'] * int(probabilities.reply_to_comment * 200))  # 2x more likely
             
             # Reduce create_post probability when there's an active latest post
             actions.extend(['create_post'] * int(probabilities.create_post * 30))  # Much less likely
@@ -91,7 +107,14 @@ class BotFramework:
             
         chosen_action = random.choice(actions)
         
-        if chosen_action == 'create_post':
+        # Handle the special case of replying to replies to our comments
+        if chosen_action == 'reply_to_my_reply' and my_comment_replies:
+            reply_target = random.choice(my_comment_replies)
+            return BotAction(
+                action_type='reply_comment',
+                target_id=reply_target['id']
+            )
+        elif chosen_action == 'create_post':
             return BotAction(
                 action_type='create_post',
                 community_name=self._choose_community()
@@ -154,6 +177,37 @@ class BotFramework:
             
         return random.choice(filtered_posts)
     
+    def _find_replies_to_my_comments(self, available_comments: List[Dict]) -> List[Dict]:
+        """Find comments that are replies to this bot's comments"""
+        my_replies = []
+        
+        # First, find all comments made by this bot
+        my_comments = []
+        for comment in available_comments:
+            comment_author = comment.get('author', {})
+            if comment_author.get('username') == self.bot_id:
+                my_comments.append(comment['id'])
+        
+        # Then find replies to those comments
+        for comment in available_comments:  
+            parent_id = comment.get('parent_comment')
+            if parent_id in my_comments:
+                # This is a reply to one of our comments
+                my_replies.append(comment)
+        
+        return my_replies
+    
+    def _has_commented_on_post(self, post_id: int, available_comments: List[Dict]) -> bool:
+        """Check if this bot has already made a level 0 comment on the given post"""
+        for comment in available_comments:
+            comment_author = comment.get('author', {})
+            # Check if this is our comment, on the target post, and is level 0 (no parent)
+            if (comment_author.get('username') == self.bot_id and 
+                comment.get('post') == post_id and 
+                comment.get('parent_comment') is None):
+                return True
+        return False
+    
     def _decide_vote_type(self) -> str:
         """Decide whether to upvote or downvote based on personality"""
         upvote_chance = self.personality.upvote_tendency
@@ -179,7 +233,7 @@ class BotFramework:
             return self._get_fallback_content(action.action_type)
     
     def _generate_post_content(self) -> tuple:
-        """Generate post title and content"""
+        """Generate post title and content with high temperature for diversity"""
         try:
             # Choose topic based on interests
             topic = random.choice(self.personality.topic_interests)
@@ -187,7 +241,17 @@ class BotFramework:
             # Build prompt based on personality
             prompt = self._build_post_prompt(topic)
             
-            response = genai.GenerativeModel('gemini-1.5-flash').generate_content(prompt)
+            # Configure generation with higher temperature for more creativity
+            generation_config = {
+                'temperature': 1.2,  # High temperature for creativity
+                'top_p': 0.95,      # Allow diverse token selection
+                'top_k': 40,        # Consider more possible tokens
+                'max_output_tokens': 500,
+                'candidate_count': 1
+            }
+            
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt, generation_config=generation_config)
             
             # Parse response
             lines = response.text.strip().split('\n')
@@ -204,10 +268,21 @@ class BotFramework:
             return self._get_fallback_post()
     
     def _generate_comment_content(self, context: Dict) -> str:
-        """Generate comment content based on context"""
+        """Generate comment content with high temperature for diversity"""
         try:
             prompt = self._build_comment_prompt(context)
-            response = genai.GenerativeModel('gemini-1.5-flash').generate_content(prompt)
+            
+            # Configure generation with higher temperature for more creativity
+            generation_config = {
+                'temperature': 1.3,  # Even higher temperature for comments
+                'top_p': 0.9,       # Allow diverse responses
+                'top_k': 50,        # Consider many possible tokens
+                'max_output_tokens': 200,
+                'candidate_count': 1
+            }
+            
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt, generation_config=generation_config)
             content = response.text.strip()
             return self._apply_personality_styling(content)
         except Exception as e:
@@ -215,13 +290,24 @@ class BotFramework:
             return self._get_fallback_content('comment')
     
     def _build_post_prompt(self, topic: str) -> str:
-        """Build a prompt for post generation based on personality"""
+        """Build a prompt for post generation based on personality with variation"""
         style = self.personality.writing_style
         personality_desc = self.personality.description
         
-        prompt = f"""Write a forum post about {topic}. 
+        # Add randomness to prompt structure
+        intro_variations = [
+            f"Write a unique forum post about {topic}.",
+            f"Create an original discussion about {topic}.", 
+            f"Share your thoughts on {topic} in a forum post.",
+            f"Write a compelling post discussing {topic}.",
+            f"Compose a forum entry about {topic}."
+        ]
+        
+        prompt = f"""{random.choice(intro_variations)}
 
-Personality: {personality_desc}
+Your personality: {personality_desc}
+
+Be creative and express your unique perspective. Avoid generic responses.
 
 Style guidelines:
 """
@@ -240,13 +326,26 @@ Style guidelines:
             
         if style.get('exclamation_marks'):
             prompt += "- Show enthusiasm with exclamation marks\n"
+        
+        # Add personality-specific creative prompts
+        creative_additions = [
+            "- Include a personal anecdote or example",
+            "- Ask thought-provoking questions",
+            "- Share a contrarian viewpoint", 
+            "- Reference current trends or events",
+            "- Use metaphors or analogies",
+            "- Include specific details or examples"
+        ]
+        
+        if random.random() < 0.7:  # 70% chance to add creative element
+            prompt += f"- {random.choice(creative_additions)}\n"
             
-        prompt += "\nProvide a title on the first line, then the content."
+        prompt += "\nProvide a title on the first line, then the content. Be original and avoid clichés."
         
         return prompt
     
     def _build_comment_prompt(self, context: Dict) -> str:
-        """Build a prompt for comment generation"""
+        """Build a prompt for comment generation with creative variations"""
         # Check if this is a reply to a comment or a comment on a post
         if 'content' in context and 'author' in context and 'post' in context:
             # This is a comment we're replying to
@@ -257,11 +356,35 @@ Style guidelines:
             personality_desc = self.personality.description
             style = self.personality.writing_style
             
-            prompt = f"""Write a reply to this comment on the forum post "{post_title}":
+            reply_variations = [
+                f"Write a thoughtful reply to this comment on '{post_title}':",
+                f"Respond to {comment_author}'s comment with your unique perspective:",
+                "Reply to this comment in your own voice:",
+                "Share your thoughts in response to this comment:",
+                "Craft a meaningful reply to this comment:"
+            ]
+            
+            prompt = f"""{random.choice(reply_variations)}
 
-Comment by {comment_author}: {comment_content}...
+Original Post: {post_title}
+"""
+            
+            # Add conversation chain if available
+            if 'conversation_chain' in context:
+                chain = context['conversation_chain']
+                prompt += "\nConversation so far:\n"
+                for i, comment in enumerate(chain):
+                    author = comment.get('author', {}).get('username', 'Unknown')
+                    content = comment.get('content', '')[:200]  # Limit each comment length
+                    prompt += f"{i+1}. {author}: {content}\n"
+                prompt += f"\nYou are replying to comment {len(chain)} by {comment_author}.\n"
+            else:
+                prompt += f"\nComment by {comment_author}: {comment_content}...\n"
 
+            prompt += f"""
 Your personality: {personality_desc}
+
+Be original and avoid generic responses. Express your unique viewpoint that builds on the conversation.
 
 Style:
 """
@@ -273,12 +396,22 @@ Style:
             personality_desc = self.personality.description
             style = self.personality.writing_style
             
-            prompt = f"""Write a comment responding to this forum post:
+            comment_variations = [
+                "Write an engaging comment on this forum post:",
+                "Share your unique perspective on this post:",
+                "Respond thoughtfully to this discussion:",
+                "Add your voice to this conversation:",
+                "Contribute meaningfully to this topic:"
+            ]
+            
+            prompt = f"""{random.choice(comment_variations)}
 
 Title: {post_title}
 Content: {post_content}...
 
 Your personality: {personality_desc}
+
+Be creative and avoid clichés. Share specific thoughts or experiences.
 
 Style:
 """
@@ -295,6 +428,21 @@ Style:
             
         if style.get('question_words'):
             prompt += "- Ask thoughtful questions or raise important points\n"
+        
+        # Add creative elements randomly
+        creative_comment_additions = [
+            "- Share a personal experience or example",
+            "- Ask a follow-up question",
+            "- Offer a different perspective", 
+            "- Reference something specific from the post",
+            "- Use humor if appropriate",
+            "- Build on or challenge a point made"
+        ]
+        
+        if random.random() < 0.6:  # 60% chance to add creative element
+            prompt += f"- {random.choice(creative_comment_additions)}\n"
+            
+        prompt += "\nAvoid generic phrases like 'interesting point' or 'thanks for sharing'."
             
         return prompt
     
@@ -468,8 +616,32 @@ Style:
             print(f"❌ {self.bot_id} failed to vote on comment: {response.text}")
             return False
     
+    def _build_conversation_chain(self, comment_data: Dict, all_comments: List[Dict]) -> List[Dict]:
+        """Build the full conversation chain for a comment to provide proper context"""
+        chain = []
+        current_comment = comment_data
+        
+        # Build the chain by following parent_comment links up to the root
+        while current_comment:
+            chain.insert(0, current_comment)  # Insert at beginning to maintain order
+            
+            parent_id = current_comment.get('parent_comment')
+            if not parent_id:
+                break
+                
+            # Find the parent comment
+            parent_comment = None
+            for comment in all_comments:
+                if comment['id'] == parent_id:
+                    parent_comment = comment
+                    break
+            
+            current_comment = parent_comment
+        
+        return chain
+    
     def _reply_to_comment(self, action: BotAction) -> bool:
-        """Reply to a comment"""
+        """Reply to a comment with full conversation context"""
         # First, get the comment details for context
         comment_url = f"{self.base_url}/comments/{action.target_id}/"
         comment_response = requests.get(comment_url, headers=self.get_headers())
@@ -480,18 +652,39 @@ Style:
         
         comment_data = comment_response.json()
         
-        # If the comment.post is just an ID, fetch the full post data
-        if isinstance(comment_data.get('post'), int):
-            post_id = comment_data['post']
+        # Get all comments for this post to build the conversation chain
+        post_id = comment_data.get('post')
+        if isinstance(post_id, int):
+            # Fetch all comments for this post
+            all_comments_url = f"{self.base_url}/comments/?post={post_id}"
+            all_comments_response = requests.get(all_comments_url, headers=self.get_headers())
+            
+            all_comments = []
+            if all_comments_response.status_code == 200:
+                all_comments_data = all_comments_response.json()
+                all_comments = all_comments_data.get('results', [])
+            
+            # Build the conversation chain
+            conversation_chain = self._build_conversation_chain(comment_data, all_comments)
+            
+            # Get the full post data for context
             post_url = f"{self.base_url}/posts/{post_id}/"
             post_response = requests.get(post_url, headers=self.get_headers())
             
             if post_response.status_code == 200:
                 post_data = post_response.json()
-                # Add the full post data to the comment context
-                comment_data['post'] = post_data
+                # Add the full post data and conversation chain to context
+                enhanced_context = {
+                    **comment_data,
+                    'post': post_data,
+                    'conversation_chain': conversation_chain
+                }
+            else:
+                enhanced_context = comment_data
+        else:
+            enhanced_context = comment_data
         
-        reply_content = self.generate_content(action, comment_data)
+        reply_content = self.generate_content(action, enhanced_context)
         
         url = f"{self.base_url}/comments/{action.target_id}/reply/"
         data = {'content': reply_content}

@@ -396,3 +396,85 @@ def register(request):
         form = BotUserCreationForm()
     
     return render(request, 'registration/register.html', {'form': form})
+
+
+def user_profile(request, username):
+    """User profile page showing posts and comments"""
+    user = get_object_or_404(CustomUser, username=username)
+    
+    # Get filter parameters
+    sort_by = request.GET.get('sort', 'new')
+    date_filter = request.GET.get('time', 'all')
+    content_type = request.GET.get('content', 'all')  # 'posts', 'comments', or 'all'
+    
+    # Get user's posts
+    posts = user.posts.filter(is_deleted=False).select_related('community')
+    posts = apply_post_filters(posts, sort_by, date_filter)
+    
+    # Get user's comments
+    comments = user.comments.filter(is_deleted=False).select_related('post', 'post__community')
+    
+    # Apply date filter to comments
+    date_threshold = get_date_filter(date_filter)
+    if date_threshold:
+        comments = comments.filter(created_at__gte=date_threshold)
+    
+    # Apply sorting to comments
+    if sort_by == 'new':
+        comments = comments.order_by('-created_at')
+    elif sort_by == 'top':
+        comments = comments.order_by('-score', '-created_at')
+    else:
+        comments = comments.order_by('-created_at')
+    
+    # Filter content type
+    if content_type == 'posts':
+        comments = Comment.objects.none()  # Empty queryset
+    elif content_type == 'comments':
+        posts = Post.objects.none()  # Empty queryset
+    
+    # Combine and paginate content
+    if content_type == 'posts':
+        content_list = list(posts[:50])  # Limit for performance
+    elif content_type == 'comments':
+        content_list = list(comments[:50])  # Limit for performance
+    else:  # 'all'
+        # Combine posts and comments, then sort by date
+        posts_list = list(posts[:25])
+        comments_list = list(comments[:25])
+        content_list = posts_list + comments_list
+        
+        # Sort combined list by creation date
+        if sort_by == 'new':
+            content_list.sort(key=lambda x: x.created_at, reverse=True)
+        elif sort_by == 'top':
+            content_list.sort(key=lambda x: (x.score, x.created_at), reverse=True)
+    
+    # Paginate the content
+    paginator = Paginator(content_list, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get user votes for the displayed content
+    user_votes = get_user_votes(request.user, page_obj.object_list)
+    
+    # Calculate user stats
+    user_stats = {
+        'total_posts': user.posts.filter(is_deleted=False).count(),
+        'total_comments': user.comments.filter(is_deleted=False).count(),
+        'total_post_score': sum(post.score for post in user.posts.filter(is_deleted=False)),
+        'total_comment_score': sum(comment.score for comment in user.comments.filter(is_deleted=False)),
+        'communities_posted_in': user.posts.filter(is_deleted=False).values('community').distinct().count(),
+    }
+    user_stats['total_score'] = user_stats['total_post_score'] + user_stats['total_comment_score']
+    
+    return render(request, 'core/user_profile.html', {
+        'profile_user': user,
+        'page_obj': page_obj,
+        'content_list': page_obj.object_list,
+        'user_votes': user_votes,
+        'user_stats': user_stats,
+        'current_sort': sort_by,
+        'current_time_filter': date_filter,
+        'current_content_type': content_type,
+    })

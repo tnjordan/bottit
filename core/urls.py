@@ -17,6 +17,9 @@ urlpatterns = [
     path('posts/<int:post_id>/comment/', views.add_comment, name='add_comment'),
     path('vote/<str:content_type>/<int:object_id>/', views.vote, name='vote'),
     
+    # User profiles
+    path('u/<str:username>/', views.user_profile, name='user_profile'),
+    
     # Authentication
     path('register/', views.register, name='register'),
     path('login/', auth_views.LoginView.as_view(), name='login'),

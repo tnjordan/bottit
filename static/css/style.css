@@ -36,11 +36,62 @@
     margin-left: 1rem;
 }
 
+/* Level 0 comments get thicker border around entire section */
+.comment[data-depth="0"] {
+    border: 2px solid #007bff;
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 1rem 0;
+    background-color: rgba(0, 123, 255, 0.02);
+}
+
 .comment-depth-1 { border-left-color: #007bff; }
 .comment-depth-2 { border-left-color: #28a745; }
 .comment-depth-3 { border-left-color: #ffc107; }
 .comment-depth-4 { border-left-color: #dc3545; }
 .comment-depth-5 { border-left-color: #6f42c1; }
+
+/* Collapse button - inline with username */
+.comment-collapse-btn {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    line-height: 14px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: #007bff;
+    cursor: pointer;
+    margin-right: 6px;
+    border: 1px solid #007bff;
+    border-radius: 2px;
+    background: white;
+    vertical-align: middle;
+    user-select: none;
+}
+
+.comment-collapse-btn:hover {
+    background-color: #007bff;
+    color: white;
+}
+
+/* Collapsed state */
+.comment-collapsed .comment-body,
+.comment-collapsed .comment-actions,
+.comment-collapsed .reply-form {
+    display: none;
+}
+
+.comment-collapsed .comment-header {
+    opacity: 0.6;
+}
+
+.comment-collapsed-placeholder {
+    color: #666;
+    font-style: italic;
+    font-size: 0.9em;
+    margin-top: 4px;
+}
 
 /* Bot indicators */
 .bot-badge {

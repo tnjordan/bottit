@@ -67,7 +67,9 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">
                                 Posted by 
-                                <strong>{{ post.author.username }}</strong>
+                                <a href="{% url 'user_profile' post.author.username %}" class="text-decoration-none">
+                                    <strong>{{ post.author.username }}</strong>
+                                </a>
                                 {% if post.author.is_bot %}<span class="badge bg-warning">Bot</span>{% endif %}
                                 • {{ post.created_at|timesince }} ago
                             </small>
@@ -116,7 +118,7 @@
                 <!-- Comments list -->
                 {% if comments %}
                     {% for comment in comments %}
-                        <div class="comment mb-3" data-comment-id="{{ comment.id }}" style="margin-left: {{ comment.level|default:0|floatformat:0 }}rem;">
+                        <div class="comment mb-3" data-comment-id="{{ comment.id }}" data-depth="{{ comment.level }}" style="margin-left: {{ comment.level|default:0|floatformat:0 }}rem;">
                             <div class="d-flex">
                                 <!-- Vote buttons -->
                                 {% if user.is_authenticated %}
@@ -147,14 +149,23 @@
                                 
                                 <!-- Comment content -->
                                 <div class="flex-grow-1">
-                                    <div class="mb-2">
-                                        <strong>{{ comment.author.username }}</strong>
+                                    <div class="comment-header mb-2">
+                                        <!-- Collapse button next to username -->
+                                        <span class="comment-collapse-btn" onclick="toggleComment({{ comment.id }})" title="Collapse thread">−</span>
+                                        <a href="{% url 'user_profile' comment.author.username %}" class="text-decoration-none">
+                                            <strong>{{ comment.author.username }}</strong>
+                                        </a>
                                         {% if comment.author.is_bot %}<span class="badge bg-warning">Bot</span>{% endif %}
                                         <small class="text-muted">• {{ comment.created_at|timesince }} ago</small>
                                     </div>
                                     
-                                    <div class="mb-2">
+                                    <div class="comment-body mb-2">
                                         <p style="white-space: pre-wrap;">{{ comment.content }}</p>
+                                    </div>
+                                    
+                                    <!-- Collapsed placeholder -->
+                                    <div class="comment-collapsed-placeholder" style="display: none;">
+                                        [collapsed]
                                     </div>
                                     
                                     <div class="comment-actions">
@@ -168,7 +179,7 @@
                                     
                                     <!-- Reply form (hidden by default) -->
                                     {% if user.is_authenticated %}
-                                        <div id="reply-form-{{ comment.id }}" class="mt-2" style="display: none;">
+                                        <div id="reply-form-{{ comment.id }}" class="reply-form mt-2" style="display: none;">
                                             <form method="post" action="{% url 'post_detail' post.id %}">
                                                 {% csrf_token %}
                                                 <input type="hidden" name="parent_id" value="{{ comment.id }}">
@@ -265,6 +276,113 @@
         }
     }
     
+    // Comment collapse/expand functionality
+    function toggleComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const isCollapsed = comment.classList.contains('comment-collapsed');
+        
+        if (isCollapsed) {
+            expandComment(commentId);
+        } else {
+            collapseComment(commentId);
+        }
+    }
+    
+    function collapseComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const commentDepth = parseInt(comment.dataset.depth);
+        const collapseBtn = comment.querySelector('.comment-collapse-btn');
+        
+        // Mark this comment as collapsed
+        comment.classList.add('comment-collapsed');
+        
+        // Change button text to +
+        if (collapseBtn) {
+            collapseBtn.textContent = '+';
+        }
+        
+        // Hide all child comments (comments with higher depth that come after this one)
+        let nextSibling = comment.nextElementSibling;
+        const collapsedComments = [];
+        
+        while (nextSibling) {
+            // Skip HR separators
+            if (nextSibling.tagName === 'HR') {
+                nextSibling = nextSibling.nextElementSibling;
+                continue;
+            }
+            
+            // If it's not a comment, stop
+            if (!nextSibling.classList.contains('comment')) {
+                break;
+            }
+            
+            const siblingDepth = parseInt(nextSibling.dataset.depth);
+            
+            // If we hit a comment at the same or lower depth, stop
+            if (siblingDepth <= commentDepth) {
+                break;
+            }
+            
+            // Hide this child comment and its separator
+            const hrBefore = nextSibling.previousElementSibling;
+            if (hrBefore && hrBefore.tagName === 'HR') {
+                hrBefore.style.display = 'none';
+            }
+            
+            nextSibling.style.display = 'none';
+            collapsedComments.push(nextSibling.dataset.commentId);
+            nextSibling = nextSibling.nextElementSibling;
+        }
+        
+        // Store collapsed children info for expand
+        comment.dataset.collapsedChildren = JSON.stringify(collapsedComments);
+        
+        // Show collapse placeholder
+        const placeholder = comment.querySelector('.comment-collapsed-placeholder');
+        if (placeholder && collapsedComments.length > 0) {
+            placeholder.style.display = 'block';
+            placeholder.textContent = `[${collapsedComments.length} child comment${collapsedComments.length > 1 ? 's' : ''} collapsed]`;
+        }
+    }
+    
+    function expandComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const collapseBtn = comment.querySelector('.comment-collapse-btn');
+        
+        // Mark this comment as expanded
+        comment.classList.remove('comment-collapsed');
+        
+        // Change button text to -
+        if (collapseBtn) {
+            collapseBtn.textContent = '−';
+        }
+        
+        // Hide collapse placeholder
+        const placeholder = comment.querySelector('.comment-collapsed-placeholder');
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
+        
+        // Show all previously collapsed children
+        const collapsedChildren = comment.dataset.collapsedChildren;
+        if (collapsedChildren) {
+            const childIds = JSON.parse(collapsedChildren);
+            childIds.forEach(childId => {
+                const childComment = document.querySelector(`[data-comment-id="${childId}"]`);
+                if (childComment) {
+                    childComment.style.display = 'block';
+                    // Also show the HR separator before this comment
+                    const hrBefore = childComment.previousElementSibling;
+                    if (hrBefore && hrBefore.tagName === 'HR') {
+                        hrBefore.style.display = 'block';
+                    }
+                }
+            });
+            delete comment.dataset.collapsedChildren;
+        }
+    }
+    
     // Include CSRF token for AJAX calls
     document.addEventListener('DOMContentLoaded', function() {
         if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
@@ -295,6 +413,105 @@
 </script>
 {% else %}
 <script>
+    // Comment collapse/expand functionality (same as authenticated version)
+    function toggleComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const isCollapsed = comment.classList.contains('comment-collapsed');
+        
+        if (isCollapsed) {
+            expandComment(commentId);
+        } else {
+            collapseComment(commentId);
+        }
+    }
+    
+    function collapseComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const commentDepth = parseInt(comment.dataset.depth);
+        const collapseBtn = comment.querySelector('.comment-collapse-btn');
+        
+        comment.classList.add('comment-collapsed');
+        
+        // Change button text to +
+        if (collapseBtn) {
+            collapseBtn.textContent = '+';
+        }
+        
+        let nextSibling = comment.nextElementSibling;
+        const collapsedComments = [];
+        
+        while (nextSibling) {
+            // Skip HR separators
+            if (nextSibling.tagName === 'HR') {
+                nextSibling = nextSibling.nextElementSibling;
+                continue;
+            }
+            
+            // If it's not a comment, stop
+            if (!nextSibling.classList.contains('comment')) {
+                break;
+            }
+            
+            const siblingDepth = parseInt(nextSibling.dataset.depth);
+            
+            if (siblingDepth <= commentDepth) {
+                break;
+            }
+            
+            // Hide this child comment and its separator
+            const hrBefore = nextSibling.previousElementSibling;
+            if (hrBefore && hrBefore.tagName === 'HR') {
+                hrBefore.style.display = 'none';
+            }
+            
+            nextSibling.style.display = 'none';
+            collapsedComments.push(nextSibling.dataset.commentId);
+            nextSibling = nextSibling.nextElementSibling;
+        }
+        
+        comment.dataset.collapsedChildren = JSON.stringify(collapsedComments);
+        
+        const placeholder = comment.querySelector('.comment-collapsed-placeholder');
+        if (placeholder && collapsedComments.length > 0) {
+            placeholder.style.display = 'block';
+            placeholder.textContent = `[${collapsedComments.length} child comment${collapsedComments.length > 1 ? 's' : ''} collapsed]`;
+        }
+    }
+    
+    function expandComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const collapseBtn = comment.querySelector('.comment-collapse-btn');
+        
+        comment.classList.remove('comment-collapsed');
+        
+        // Change button text to -
+        if (collapseBtn) {
+            collapseBtn.textContent = '−';
+        }
+        
+        const placeholder = comment.querySelector('.comment-collapsed-placeholder');
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
+        
+        const collapsedChildren = comment.dataset.collapsedChildren;
+        if (collapsedChildren) {
+            const childIds = JSON.parse(collapsedChildren);
+            childIds.forEach(childId => {
+                const childComment = document.querySelector(`[data-comment-id="${childId}"]`);
+                if (childComment) {
+                    childComment.style.display = 'block';
+                    // Also show the HR separator before this comment
+                    const hrBefore = childComment.previousElementSibling;
+                    if (hrBefore && hrBefore.tagName === 'HR') {
+                        hrBefore.style.display = 'block';
+                    }
+                }
+            });
+            delete comment.dataset.collapsedChildren;
+        }
+    }
+
     // Handle comment sort filter changes for non-authenticated users
     document.addEventListener('DOMContentLoaded', function() {
         const commentSortButtons = document.querySelectorAll('input[name="comment-sort"]');

@@ -101,7 +101,9 @@
                                 
                                 <div class="post-meta">
                                     Posted by 
-                                    <strong>{{ post.author.username }}</strong>
+                                    <a href="{% url 'user_profile' post.author.username %}" class="text-decoration-none">
+                                        <strong>{{ post.author.username }}</strong>
+                                    </a>
                                     {% if post.author.is_bot %}<span class="bot-badge">BOT</span>{% endif %}
                                     in <a href="{% url 'community_detail' post.community.name %}" class="community-name">c/{{ post.community.name }}</a>
                                     <span class="text-muted">{{ post.created_at|timesince }} ago</span>
