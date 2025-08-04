@@ -7,7 +7,7 @@ import os
 import time
 import random
 import requests
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -108,7 +108,7 @@ class BotFarmOrganizer:
             for bot_id, bot in self.bots.items()
         }
     
-    def fetch_available_content(self) -> Dict:
+    def fetch_available_content(self) -> Tuple[List[Dict], List[Dict]]:
         """Fetch only the most recent post and its comments for focused bot interaction"""
         try:
             headers = {
@@ -116,7 +116,7 @@ class BotFarmOrganizer:
                 'Content-Type': 'application/json'
             }
             
-            # Get only the most recent post
+            # Get only the most recent post - bots will focus exclusively on this
             posts_response = requests.get(f"{self.base_url}/posts/", headers=headers)
             posts = []
             latest_post_id = None
@@ -125,31 +125,35 @@ class BotFarmOrganizer:
                 posts_data = posts_response.json()
                 all_posts = posts_data.get('results', [])
                 if all_posts:
-                    # Take only the most recent post
+                    # Take only the most recent post - this ensures all bot activity is concentrated
                     latest_post = all_posts[0]
-                    posts = [latest_post]
+                    posts = [latest_post]  # Single post array to maintain API compatibility
                     latest_post_id = latest_post['id']
+                    print(f"🎯 Bots will focus on latest post: '{latest_post.get('title', 'Unknown')}' (ID: {latest_post_id})")
             
-            # Get comments only for the latest post
+            # Get comments only for the latest post - bots only interact with current discussion
             comments = []
             if latest_post_id:
-                comments_response = requests.get(f"{self.base_url}/comments/", headers=headers)
+                # Use query parameter to filter comments by post ID
+                comments_url = f"{self.base_url}/comments/?post={latest_post_id}"
+                print(f"🔍 Fetching comments from: {comments_url}")
+                comments_response = requests.get(comments_url, headers=headers)
                 if comments_response.status_code == 200:
                     comments_data = comments_response.json()
                     all_comments = comments_data.get('results', [])
-                    # Filter comments to only include those for the latest post
-                    comments = [c for c in all_comments if c.get('post') == latest_post_id][:10]  # Limit to 10 most recent comments
+                    print(f"📊 API returned {len(all_comments)} comments for post {latest_post_id}")
+                    
+                    comments = all_comments[:10]  # Limit to 10 most recent comments for focused interaction
+                else:
+                    print(f"❌ Failed to fetch comments: {comments_response.status_code}")
             
-            return {
-                'posts': posts,
-                'comments': comments
-            }
+            return posts, comments
             
         except Exception as e:
             print(f"❌ Error fetching content: {e}")
-            return {'posts': [], 'comments': []}
+            return [], []
     
-    def run_bot_cycle(self, bot_id: str, available_content: Dict) -> Optional[str]:
+    def run_bot_cycle(self, bot_id: str, available_posts: List[Dict], available_comments: List[Dict]) -> Optional[str]:
         """Run one decision/action cycle for a specific bot"""
         if bot_id not in self.bots:
             return None
@@ -157,36 +161,42 @@ class BotFarmOrganizer:
         bot = self.bots[bot_id]
         
         try:
+            print(f"🤖 {bot_id} evaluating actions with {len(available_posts)} posts and {len(available_comments)} comments")
+            
             # Bot decides what action to take
             action = bot.decide_action(
-                available_content['posts'],
-                available_content['comments']
+                available_posts,
+                available_comments
             )
             
             if action is None:
-                return f"{bot_id}: No action taken"
+                return f"{bot_id}: No action taken (cooldown or no valid actions)"
+            
+            print(f"🎬 {bot_id} executing {action.action_type} on target {action.target_id}")
             
             # Execute the action
             success = bot.execute_action(action)
             
             if success:
-                return f"{bot_id}: Executed {action.action_type}"
+                return f"{bot_id}: ✅ Executed {action.action_type}"
             else:
-                return f"{bot_id}: Failed to execute {action.action_type}"
+                return f"{bot_id}: ❌ Failed to execute {action.action_type}"
                 
         except Exception as e:
+            print(f"❌ Exception in bot cycle for {bot_id}: {e}")
             return f"{bot_id}: Error - {e}"
     
     def run_single_cycle(self) -> List[str]:
-        """Run one decision/action cycle for all bots"""
+        """Run one decision/action cycle for all bots - focused on the most recent post only"""
         print(f"\n🔄 Running bot cycle at {datetime.now().strftime('%H:%M:%S')}")
         print("=" * 60)
         
-        # Fetch current state of the platform
-        available_content = self.fetch_available_content()
-        if available_content['posts']:
-            latest_post = available_content['posts'][0]
-            print(f"📋 Focusing on latest post: '{latest_post.get('title', 'Unknown')}' with {len(available_content['comments'])} comments")
+        # Fetch current state of the platform - only the most recent post and its comments
+        available_posts, available_comments = self.fetch_available_content()
+        if available_posts:
+            latest_post = available_posts[0]
+            print(f"🎯 ALL BOTS focusing on latest post: '{latest_post.get('title', 'Unknown')}' with {len(available_comments)} comments")
+            print(f"📍 Post ID: {latest_post['id']} | Community: {latest_post.get('community_name', 'Unknown')}")
         else:
             print("📋 No recent posts found - bots will create new content")
         
@@ -195,7 +205,7 @@ class BotFarmOrganizer:
         # Run bots in parallel for efficiency
         with ThreadPoolExecutor(max_workers=min(len(self.bots), 5)) as executor:
             future_to_bot = {
-                executor.submit(self.run_bot_cycle, bot_id, available_content): bot_id
+                executor.submit(self.run_bot_cycle, bot_id, available_posts, available_comments): bot_id
                 for bot_id in self.bots.keys()
             }
             

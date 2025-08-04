@@ -43,6 +43,47 @@ class BotFramework:
             'Content-Type': 'application/json'
         }
     
+    def has_base_comment_on_post(self, post_id: int) -> bool:
+        """Check if this bot has already made a base-level comment on the given post"""
+        try:
+            url = f"{self.base_url}/users/{self.bot_id}/post_comments/"
+            params = {'post_id': post_id}
+            response = requests.get(url, headers=self.get_headers(), params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('has_commented', False)
+            return False
+        except Exception as e:
+            print(f"❌ Error checking base comment for {self.bot_id}: {e}")
+            return False
+    
+    def has_replied_to_comment(self, comment_id: int, all_comments: List[Dict]) -> bool:
+        """Check if this bot has already replied to a specific comment"""
+        for comment in all_comments:
+            comment_author = comment.get('author', {}).get('username')
+            parent_comment_id = comment.get('parent_comment')
+            
+            # Check if this is our comment replying to the target comment
+            if (comment_author == self.bot_id
+                    and parent_comment_id == comment_id):
+                return True
+        return False
+    
+    def get_pending_replies(self) -> List[Dict]:
+        """Get comments that are replies to this bot's comments"""
+        try:
+            url = f"{self.base_url}/users/{self.bot_id}/pending_replies/"
+            response = requests.get(url, headers=self.get_headers())
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('replies', [])
+            return []
+        except Exception as e:
+            print(f"❌ Error getting pending replies for {self.bot_id}: {e}")
+            return []
+
     def should_take_action(self) -> bool:
         """Determine if bot should take any action based on activity level and timing"""
         if self.last_action_time is None:
@@ -69,51 +110,117 @@ class BotFramework:
         probabilities = self.personality.action_probabilities
         actions = []
         
-        # Check for replies to our own comments (highest priority)
-        my_comment_replies = self._find_replies_to_my_comments(available_comments)
-        if my_comment_replies:
-            # Heavily prioritize replying to responses to our comments
-            actions.extend(['reply_to_my_reply'] * int(probabilities.reply_to_comment * 500))  # 5x more likely
+        # First priority: Check for replies to our comments that need responding to
+        pending_replies = self.get_pending_replies()
+        current_post_replies = []  # Replies on the current post
         
-        # If there's a latest post available, interact with it
+        # If we have a current post, prioritize replies on that post
         if available_posts:
-            latest_post = available_posts[0]
+            current_post_id = available_posts[0]['id']
             
-            # Check if we've already made a level 0 comment on this post
-            already_commented = self._has_commented_on_post(latest_post['id'], available_comments)
+            # Find replies to our comments specifically on the current post
+            for reply in pending_replies:
+                reply_post_id = reply.get('post')
+                if reply_post_id == current_post_id:
+                    # Skip self-replies
+                    reply_author = reply.get('author', {}).get('username')
+                    if reply_author == self.bot_id:
+                        continue
+                    current_post_replies.append(reply)
+        
+        # ONLY respond to replies on the current post - ignore all old replies from other posts
+        if current_post_replies:
+            # HEAVILY prioritize responding to replies on the current active post
+            actions.extend(['respond_to_current_reply'] * int(probabilities.reply_to_comment * 1000))  # 10x more likely
+            print(f"🔥 {self.bot_id} found {len(current_post_replies)} replies on current post - HEAVILY prioritizing!")
+        
+        # No longer respond to old replies from other posts - bots focus ONLY on current discussion
+        
+        # Focus exclusively on the most recent post if available - this ensures all bot activity is concentrated
+        if available_posts:
+            latest_post = available_posts[0]  # Only work on the most recent post
+            post_id = latest_post['id']
             
-            # Boost interaction probabilities for the latest post
+            # Check if we've already made a base-level comment on this specific post
+            already_commented = self.has_base_comment_on_post(post_id)
+            
+            # Boost interaction probabilities for the current active post
             actions.extend(['vote_post'] * int(probabilities.vote_on_post * 150))  # 1.5x more likely
             
-            # Only allow level 0 comments if we haven't already commented
-            if not already_commented:
-                actions.extend(['comment_post'] * int(probabilities.comment_on_post * 200))  # 2x more likely
-            
-            # If there are comments on the latest post, encourage replies (but not to our own reply responses)
+            # If there are comments on the latest post, prioritize replies over base comments
             if available_comments:
-                other_comments = [c for c in available_comments if c['id'] not in [r['id'] for r in my_comment_replies]]
+                # Filter out only our own comments - keep all other bots' comments as valid reply targets
+                other_comments = []
+                for comment in available_comments:
+                    comment_author = comment.get('author', {}).get('username')
+                    # Skip our own comments
+                    if comment_author == self.bot_id:
+                        continue
+                    
+                    other_comments.append(comment)
+                
                 if other_comments:
-                    actions.extend(['vote_comment'] * int(probabilities.vote_on_comment * 150))  # 1.5x more likely
-                    actions.extend(['reply_comment'] * int(probabilities.reply_to_comment * 200))  # 2x more likely
+                    # ONLY allow base-level comments if we haven't already commented - NEVER if we have
+                    if not already_commented:
+                        # Prioritize base comment when haven't commented yet, but still allow replies
+                        actions.extend(['comment_post'] * int(probabilities.comment_on_post * 600))  # High priority for first comment
+                        actions.extend(['vote_comment'] * int(probabilities.vote_on_comment * 200))  # Lower priority for votes
+                        actions.extend(['reply_comment'] * int(probabilities.reply_to_comment * 300))  # Lower priority for replies
+                        print(f"🤖 {self.bot_id} prioritizing base comment (hasn't commented yet) over {len(other_comments)} replies")
+                    else:
+                        # If already commented, focus entirely on interacting with others
+                        actions.extend(['vote_comment'] * int(probabilities.vote_on_comment * 400))  # 4x more likely
+                        actions.extend(['reply_comment'] * int(probabilities.reply_to_comment * 800))  # 8x more likely
+                        print(f"🚫 {self.bot_id} BLOCKED from base comment - already commented on post {post_id}, focusing on replies")
+                else:
+                    # No other comments exist, definitely make base comment if we haven't commented
+                    if not already_commented:
+                        actions.extend(['comment_post'] * int(probabilities.comment_on_post * 800))  # Very high priority - no other comments to interact with
+                        print(f"🤖 {self.bot_id} will make first base comment (no other comments to reply to)")
+                    else:
+                        print(f"🚫 {self.bot_id} BLOCKED from base comment - already commented on post {post_id}")
+            else:
+                # No comments at all, definitely make base comment if we haven't commented
+                if not already_commented:
+                    actions.extend(['comment_post'] * int(probabilities.comment_on_post * 800))  # Very high priority - start the conversation
+                    print(f"🤖 {self.bot_id} will make first base comment (no comments on post yet)")
+                else:
+                    print(f"🚫 {self.bot_id} BLOCKED from base comment - already commented on post {post_id}")
             
-            # Reduce create_post probability when there's an active latest post
-            actions.extend(['create_post'] * int(probabilities.create_post * 30))  # Much less likely
+            # If we already commented but there are no other comments to reply to, just vote or do nothing
+            if already_commented and not other_comments:
+                print(f"🤖 {self.bot_id} already commented on post {post_id} with no other comments to reply to - limited actions")
+            
+            # Make post creation very rare when there's an active latest post - bots should focus on current discussion
+            actions.extend(['create_post'] * int(probabilities.create_post * 10))  # Very rare - only 1% of normal probability
         else:
             # No recent post available, heavily favor creating new content
             actions.extend(['create_post'] * int(probabilities.create_post * 300))  # 3x more likely
         
         if not actions:
+            print(f"⚠️ {self.bot_id} has no available actions - this shouldn't happen!")
             return None
             
         chosen_action = random.choice(actions)
+        print(f"🎯 {self.bot_id} chose action: {chosen_action} from {len(actions)} options")
         
-        # Handle the special case of replying to replies to our comments
-        if chosen_action == 'reply_to_my_reply' and my_comment_replies:
-            reply_target = random.choice(my_comment_replies)
-            return BotAction(
-                action_type='reply_comment',
-                target_id=reply_target['id']
-            )
+        # Handle the special case of responding to replies to our comments - ONLY on current post
+        if chosen_action == 'respond_to_current_reply' and current_post_replies:
+            # Filter out replies we've already responded to
+            available_replies = []
+            for reply in current_post_replies:
+                if not self.has_replied_to_comment(reply['id'], available_comments):
+                    available_replies.append(reply)
+            
+            if available_replies:
+                reply_target = random.choice(available_replies)
+                print(f"🔥 {self.bot_id} prioritizing current post reply from {reply_target.get('author', {}).get('username', 'unknown')}")
+                return BotAction(
+                    action_type='reply_comment',
+                    target_id=reply_target['id']
+                )
+            else:
+                print(f"🚫 {self.bot_id} no new replies to respond to - all already replied to")
         elif chosen_action == 'create_post':
             return BotAction(
                 action_type='create_post',
@@ -133,20 +240,84 @@ class BotFramework:
                 target_id=post['id']
             )
         elif chosen_action == 'vote_comment' and available_comments:
-            comment = random.choice(available_comments)
-            return BotAction(
-                action_type='vote_comment',
-                target_id=comment['id'],
-                vote_type=self._decide_vote_type()
-            )
+            # Filter out our own comments and ensure only current post comments
+            current_post_id = available_posts[0]['id'] if available_posts else None
+            other_comments = []
+            
+            for comment in available_comments:
+                comment_author = comment.get('author', {}).get('username')
+                comment_post_id = comment.get('post')
+                
+                # Skip our own comments
+                if comment_author == self.bot_id:
+                    continue
+                
+                # Silently skip comments from wrong posts (safety check)
+                if comment_post_id != current_post_id:
+                    continue
+                
+                other_comments.append(comment)
+            
+            if other_comments:
+                comment = random.choice(other_comments)
+                current_post_id = available_posts[0]['id'] if available_posts else None
+                print(f"🎯 {self.bot_id} voting on comment {comment.get('id')} on current post {current_post_id}")
+                return BotAction(
+                    action_type='vote_comment',
+                    target_id=comment['id'],
+                    vote_type=self._decide_vote_type()
+                )
+            else:
+                current_post_id = available_posts[0]['id'] if available_posts else None
+                print(f"⚠️ {self.bot_id} no valid comments to vote on in current post {current_post_id}")
         elif chosen_action == 'reply_comment' and available_comments:
-            comment = random.choice(available_comments)
-            return BotAction(
-                action_type='reply_comment',
-                target_id=comment['id']
-            )
+            # Filter out our own comments, but allow replies to any other bot's comments
+            other_comments = []
+            current_post_id = available_posts[0]['id'] if available_posts else None
+            
+            for comment in available_comments:
+                comment_author = comment.get('author', {}).get('username')
+                comment_post_id = comment.get('post')
+                
+                # Skip our own comments
+                if comment_author == self.bot_id:
+                    continue
+                
+                # Silently skip comments from wrong posts (safety check)
+                if comment_post_id != current_post_id:
+                    continue
+                
+                # Skip comments we've already replied to
+                if self.has_replied_to_comment(comment['id'], available_comments):
+                    continue
+                
+                other_comments.append(comment)
+            
+            if other_comments:
+                comment = random.choice(other_comments)
+                current_post_id = available_posts[0]['id'] if available_posts else None
+                print(f"🎯 {self.bot_id} replying to comment {comment.get('id')} on current post {current_post_id}")
+                return BotAction(
+                    action_type='reply_comment',
+                    target_id=comment['id']
+                )
+            else:
+                current_post_id = available_posts[0]['id'] if available_posts else None
+                print(f"⚠️ {self.bot_id} no valid comments to reply to on current post {current_post_id}")
         
         return None
+    
+    def _choose_post(self, posts: List[Dict]) -> Dict:
+        """Always return the most recent post (first in the list) to ensure bots only work on current content"""
+        if not posts:
+            return None
+        
+        # Always return the most recent post - no more choice, bots focus on current discussion
+        latest_post = posts[0]
+        
+        # We always work on the most recent post regardless of community preferences
+        # (since that's where the current conversation is happening)
+        return latest_post
     
     def _choose_community(self) -> str:
         """Choose a community based on preferences"""
@@ -154,57 +325,14 @@ class BotFramework:
             return random.choice(self.personality.preferred_communities)
         return "general"
     
-    def _choose_post(self, posts: List[Dict]) -> Dict:
-        """Choose a post to interact with based on personality"""
-        # Filter by community preferences
-        filtered_posts = []
-        for post in posts:
-            # Handle both string community_name and dict community formats
-            if 'community_name' in post:
-                community = post['community_name']
-            elif 'community' in post and isinstance(post['community'], dict):
-                community = post['community'].get('name', 'general')
-            else:
-                community = 'general'
-                
-            if (community in self.personality.preferred_communities or 
-                not self.personality.preferred_communities):
-                if community not in self.personality.avoid_communities:
-                    filtered_posts.append(post)
-        
-        if not filtered_posts:
-            filtered_posts = posts
-            
-        return random.choice(filtered_posts)
-    
-    def _find_replies_to_my_comments(self, available_comments: List[Dict]) -> List[Dict]:
-        """Find comments that are replies to this bot's comments"""
-        my_replies = []
-        
-        # First, find all comments made by this bot
-        my_comments = []
-        for comment in available_comments:
-            comment_author = comment.get('author', {})
-            if comment_author.get('username') == self.bot_id:
-                my_comments.append(comment['id'])
-        
-        # Then find replies to those comments
-        for comment in available_comments:  
-            parent_id = comment.get('parent_comment')
-            if parent_id in my_comments:
-                # This is a reply to one of our comments
-                my_replies.append(comment)
-        
-        return my_replies
-    
     def _has_commented_on_post(self, post_id: int, available_comments: List[Dict]) -> bool:
         """Check if this bot has already made a level 0 comment on the given post"""
         for comment in available_comments:
             comment_author = comment.get('author', {})
             # Check if this is our comment, on the target post, and is level 0 (no parent)
-            if (comment_author.get('username') == self.bot_id and 
-                comment.get('post') == post_id and 
-                comment.get('parent_comment') is None):
+            if (comment_author.get('username') == self.bot_id
+                    and comment.get('post') == post_id
+                    and comment.get('parent_comment') is None):
                 return True
         return False
     

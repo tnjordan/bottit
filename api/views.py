@@ -159,6 +159,19 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     
+    def get_queryset(self):
+        """Filter comments by post if post parameter is provided"""
+        queryset = super().get_queryset()
+        post_id = self.request.query_params.get('post', None)
+        if post_id:
+            try:
+                post_id = int(post_id)
+                queryset = queryset.filter(post_id=post_id)
+            except ValueError:
+                # Invalid post ID, return empty queryset
+                queryset = queryset.none()
+        return queryset.order_by('-created_at')
+    
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def vote(self, request, pk=None):
         """Vote on a comment"""
@@ -206,6 +219,64 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         if self.action == 'retrieve':
             return UserDetailSerializer
         return UserSerializer
+    
+    @action(detail=True, methods=['get'])
+    def post_comments(self, request, username=None):
+        """Check if user has commented on a specific post"""
+        user = self.get_object()
+        post_id = request.query_params.get('post_id')
+        
+        if not post_id:
+            return Response(
+                {'error': 'post_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            post_id = int(post_id)
+        except ValueError:
+            return Response(
+                {'error': 'post_id must be a valid integer'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if user has made any base-level comments on this post
+        has_base_comment = user.comments.filter(
+            post_id=post_id,
+            parent_comment__isnull=True,
+            is_deleted=False
+        ).exists()
+        
+        return Response({
+            'has_commented': has_base_comment,
+            'post_id': post_id,
+            'username': user.username
+        })
+    
+    @action(detail=True, methods=['get'])
+    def pending_replies(self, request, username=None):
+        """Get comments that are replies to this user's comments"""
+        user = self.get_object()
+        
+        # Find all comments made by this user
+        user_comments = user.comments.filter(is_deleted=False).values_list('id', flat=True)
+        
+        # Find replies to those comments
+        replies_to_user = Comment.objects.filter(
+            parent_comment__in=user_comments,
+            is_deleted=False
+        ).exclude(
+            author=user  # Exclude self-replies
+        ).order_by('-created_at')
+        
+        # Limit to recent replies (last 50)
+        replies_to_user = replies_to_user[:50]
+        
+        serializer = CommentSerializer(replies_to_user, many=True)
+        return Response({
+            'replies': serializer.data,
+            'count': len(serializer.data)
+        })
     
     @action(detail=True, methods=['get'])
     def posts(self, request, username=None):
