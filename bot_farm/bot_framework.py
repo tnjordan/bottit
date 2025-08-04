@@ -472,14 +472,14 @@ class BotFramework:
             
             # Configure generation with higher temperature for more creativity
             generation_config = {
-                'temperature': 1.2,  # High temperature for creativity
-                'top_p': 0.95,      # Allow diverse token selection
-                'top_k': 40,        # Consider more possible tokens
-                'max_output_tokens': 500,
+                'temperature': 1.9,  # Very high temperature for maximum creativity
+                'top_p': 0.98,      # Allow maximum diverse token selection
+                'top_k': 100,       # Consider even more possible tokens
+                'max_output_tokens': 128_000,
                 'candidate_count': 1
             }
             
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt, generation_config=generation_config)
             
             # Parse response
@@ -503,9 +503,9 @@ class BotFramework:
             
             # Configure generation with higher temperature for more creativity
             generation_config = {
-                'temperature': 1.3,  # Even higher temperature for comments
-                'top_p': 0.9,       # Allow diverse responses
-                'top_k': 50,        # Consider many possible tokens
+                'temperature': 1.8,  # Much higher temperature for maximum diversity
+                'top_p': 0.95,      # Allow even more diverse token selection
+                'top_k': 80,        # Consider many more possible tokens
                 'max_output_tokens': 200,
                 'candidate_count': 1
             }
@@ -578,7 +578,7 @@ Style guidelines:
         # Check if this is a reply to a comment or a comment on a post
         if 'content' in context and 'author' in context and 'post' in context:
             # This is a comment we're replying to
-            comment_content = context.get('content', '')[:300]  # Truncate for prompt
+            comment_content = context.get('content', '')
             comment_author = context.get('author', {}).get('username', 'Unknown')
             post_title = context.get('post', {}).get('title', 'Unknown Post')
             
@@ -691,6 +691,26 @@ Style:
             slang_words = style['slang']
             if random.random() < 0.4:  # 40% chance
                 text += f" {random.choice(slang_words)}"
+        
+        # Enhanced INCEL personality styling for more variety
+        if self.personality.personality_type.value == 'incel':
+            # Add complaints and negative phrases randomly
+            if style.get('complaints') and random.random() < 0.5:  # 50% chance
+                complaint = random.choice(style['complaints'])
+                text += f" {complaint}"
+            
+            # Add negative phrases occasionally  
+            if style.get('negative_phrases') and random.random() < 0.3:  # 30% chance
+                neg_phrase = random.choice(style['negative_phrases'])
+                text = f"{neg_phrase}, {text.lower()}"
+            
+            # Add internet slang sometimes
+            if style.get('internet_slang') and random.random() < 0.4:  # 40% chance
+                slang = random.choice(style['internet_slang'])
+                if random.random() < 0.5:
+                    text = f"{slang} {text}"
+                else:
+                    text += f" {slang}"
         
         return text
     

@@ -19,6 +19,8 @@ class BotPersonalityType(Enum):
     CASUAL = "casual"              # Informal, uses slang, short posts
     CONTRARIAN = "contrarian"      # Often disagrees, plays devil's advocate
     NEWBIE = "newbie"              # Asks lots of questions, unsure, learning-focused
+    INCEL = "incel"                # Cynical, negative comments, tends to complain
+    EMOJI = "emoji"                # Responds only with emojis to express opinions
 
 
 @dataclass
@@ -218,6 +220,73 @@ PERSONALITY_TEMPLATES = {
         upvote_tendency=0.7,
         downvote_tendency=0.2,
         preferred_communities=["general", "casual", "fun"]
+    ),
+    
+    BotPersonalityType.INCEL: BotPersonality(
+        name="Incel Bot",
+        personality_type=BotPersonalityType.INCEL,
+        description="Cynical and negative, often complains about various topics",
+        writing_style={
+            "negative_tone": True,
+            "complaints": [
+                "this sucks", "typical", "figures", "of course", "whatever", 
+                "cringe", "cope", "based", "trash", "garbage", "mid", "ass",
+                "overrated", "boring", "stupid", "pointless", "waste of time",
+                "nobody asked", "this ain't it", "L take", "ratio", "facts",
+                "no cap", "fr", "deadass", "on god", "periodt", "bet"
+            ],
+            "negative_phrases": [
+                "nobody cares", "who asked", "skill issue", "touch grass",
+                "get a life", "imagine thinking", "this is why", "tell me you",
+                "POV:", "when you", "average", "moment", "energy", "vibes"
+            ],
+            "internet_slang": [
+                "ngl", "tbh", "imo", "lowkey", "highkey", "fr fr", "no cap",
+                "sus", "cap", "slaps", "hits different", "built different",
+                "down bad", "down horrendous", "sheesh", "bussin", "salty"
+            ],
+            "average_length": "medium",
+            "cynical": True,
+            "emoji_usage": "low",
+            "internet_culture": True,
+            "edgy_humor": True
+        },
+        topic_interests=["complaints", "rants", "negativity", "criticism", "problems", "drama", "controversy"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.08,
+            comment_on_post=0.6,
+            vote_on_post=0.5,
+            vote_on_comment=0.7,
+            reply_to_comment=0.4
+        ),
+        activity_level=0.6,
+        upvote_tendency=0.2,
+        downvote_tendency=0.6,
+        preferred_communities=["general", "rants", "complaints"]
+    ),
+    
+    BotPersonalityType.EMOJI: BotPersonality(
+        name="Emoji Bot",
+        personality_type=BotPersonalityType.EMOJI,
+        description="Communicates exclusively through emojis to express opinions and reactions",
+        writing_style={
+            "emoji_only": True,
+            "no_text": True,
+            "average_length": "very_short",
+            "emoji_usage": "exclusive"
+        },
+        topic_interests=["everything", "universal", "emotions", "reactions"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.05,  # Very low - hard to create posts with just emojis
+            comment_on_post=0.8,  # High - easy to react with emojis
+            vote_on_post=0.9,  # Very high - voting aligns with emoji reactions
+            vote_on_comment=0.9,
+            reply_to_comment=0.7  # High - quick emoji responses
+        ),
+        activity_level=0.8,  # High activity due to quick emoji responses
+        upvote_tendency=0.6,
+        downvote_tendency=0.3,
+        preferred_communities=["general", "fun", "memes", "casual"]
     )
 }
 
