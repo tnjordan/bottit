@@ -129,21 +129,30 @@ class BotFarmOrganizer:
                     latest_post = all_posts[0]
                     posts = [latest_post]  # Single post array to maintain API compatibility
                     latest_post_id = latest_post['id']
-                    print(f"🎯 Bots will focus on latest post: '{latest_post.get('title', 'Unknown')}' (ID: {latest_post_id})")
+                    print(f"🎯 Bots will focus EXCLUSIVELY on latest post: '{latest_post.get('title', 'Unknown')}' (ID: {latest_post_id})")
             
-            # Get comments only for the latest post - bots only interact with current discussion
+            # Get ALL comments for the latest post - we need complete conversation context
             comments = []
             if latest_post_id:
                 # Use query parameter to filter comments by post ID
                 comments_url = f"{self.base_url}/comments/?post={latest_post_id}"
-                print(f"🔍 Fetching comments from: {comments_url}")
+                print(f"🔍 Fetching ALL comments from: {comments_url}")
                 comments_response = requests.get(comments_url, headers=headers)
                 if comments_response.status_code == 200:
                     comments_data = comments_response.json()
                     all_comments = comments_data.get('results', [])
                     print(f"📊 API returned {len(all_comments)} comments for post {latest_post_id}")
                     
-                    comments = all_comments[:10]  # Limit to 10 most recent comments for focused interaction
+                    # Keep ALL comments for complete conversation context (no limit)
+                    comments = all_comments
+                    
+                    # Analyze conversation structure for better bot decisions
+                    base_comments = [c for c in comments if c.get('parent_comment') is None]
+                    reply_comments = [c for c in comments if c.get('parent_comment') is not None]
+                    bot_base_comments = [c for c in base_comments if c.get('author', {}).get('username', '').endswith('_bot') or c.get('author', {}).get('is_bot')]
+                    
+                    print(f"💬 Conversation analysis: {len(base_comments)} base comments, {len(reply_comments)} replies")
+                    print(f"🤖 Bot participation: {len(bot_base_comments)} bots have made base comments")
                 else:
                     print(f"❌ Failed to fetch comments: {comments_response.status_code}")
             
@@ -187,23 +196,60 @@ class BotFarmOrganizer:
             return f"{bot_id}: Error - {e}"
     
     def run_single_cycle(self) -> List[str]:
-        """Run one decision/action cycle for all bots - focused on the most recent post only"""
-        print(f"\n🔄 Running bot cycle at {datetime.now().strftime('%H:%M:%S')}")
-        print("=" * 60)
+        """Run one focused decision/action cycle for all bots - EXCLUSIVELY on the most recent post"""
+        print(f"\n🔄 Running FOCUSED bot cycle at {datetime.now().strftime('%H:%M:%S')}")
+        print("=" * 80)
         
-        # Fetch current state of the platform - only the most recent post and its comments
+        # Fetch current state of the platform - ONLY the most recent post and ALL its comments
         available_posts, available_comments = self.fetch_available_content()
         if available_posts:
             latest_post = available_posts[0]
-            print(f"🎯 ALL BOTS focusing on latest post: '{latest_post.get('title', 'Unknown')}' with {len(available_comments)} comments")
+            print(f"🎯 ALL BOTS focusing EXCLUSIVELY on: '{latest_post.get('title', 'Unknown')}'")
             print(f"📍 Post ID: {latest_post['id']} | Community: {latest_post.get('community_name', 'Unknown')}")
+            print(f"💬 Current conversation: {len(available_comments)} total comments")
+            
+            # Analyze bot participation for strategic decisions
+            bot_comments = []
+            human_comments = []
+            base_level_comments = []
+            reply_comments = []
+            
+            for comment in available_comments:
+                author = comment.get('author', {})
+                is_bot = author.get('is_bot', False) or author.get('username', '').endswith('_bot')
+                is_base_level = comment.get('parent_comment') is None
+                
+                if is_bot:
+                    bot_comments.append(comment)
+                else:
+                    human_comments.append(comment)
+                    
+                if is_base_level:
+                    base_level_comments.append(comment)
+                else:
+                    reply_comments.append(comment)
+            
+            print(f"🤖 Bot participation: {len(bot_comments)} bot comments, {len(human_comments)} human comments")
+            print(f"📊 Comment structure: {len(base_level_comments)} base-level, {len(reply_comments)} replies")
+            
+            # Check which bots have already made base comments on this post
+            bots_with_base_comments = set()
+            for comment in base_level_comments:
+                author = comment.get('author', {})
+                if author.get('is_bot', False) or author.get('username', '').endswith('_bot'):
+                    bots_with_base_comments.add(author.get('username'))
+            
+            remaining_bots = set(self.bots.keys()) - bots_with_base_comments
+            print(f"✅ Bots with base comments: {len(bots_with_base_comments)} - {list(bots_with_base_comments)}")
+            print(f"⏳ Bots yet to comment: {len(remaining_bots)} - {list(remaining_bots)}")
+            
         else:
             print("📋 No recent posts found - bots will create new content")
         
         results = []
         
-        # Run bots in parallel for efficiency
-        with ThreadPoolExecutor(max_workers=min(len(self.bots), 5)) as executor:
+        # Run bots in parallel for efficiency, but prioritize those who haven't made base comments yet
+        with ThreadPoolExecutor(max_workers=min(len(self.bots), 3)) as executor:  # Reduced concurrency for more focused interaction
             future_to_bot = {
                 executor.submit(self.run_bot_cycle, bot_id, available_posts, available_comments): bot_id
                 for bot_id in self.bots.keys()
@@ -221,7 +267,9 @@ class BotFarmOrganizer:
                     results.append(error_msg)
                     print(f"  {error_msg}")
         
-        print("-" * 60)
+        print("-" * 80)
+        successful_actions = len([r for r in results if "✅" in r])
+        print(f"📈 Cycle summary: {successful_actions} successful actions out of {len(results)} total")
         return results
     
     def run_continuous(self, cycle_interval: int = 30, max_cycles: int = None):

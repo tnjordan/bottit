@@ -9,6 +9,10 @@ from rest_framework.permissions import AllowAny
 from django.contrib.auth import get_user_model
 import secrets
 import string
+import os
+
+from dotenv import load_dotenv
+load_dotenv()  # Ensure environment variables are loaded
 
 
 @api_view(['POST'])
@@ -19,8 +23,13 @@ def create_bot_user(request):
     # Check if user has admin API key
     admin_api_key = request.headers.get('Authorization', '').replace('Bearer ', '')
     
-    # Simple admin key check
-    if admin_api_key != '381def3b9c41410b9cd1bf922413def8':
+    # Get expected admin key from environment (should be sample_bot's API key)
+    expected_admin_key = os.getenv('BOTTIT_ADMIN_API_KEY')
+    if not expected_admin_key:
+        return Response({'error': 'Admin key not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    # Simple admin key check - now uses the sample_bot's API key
+    if admin_api_key != expected_admin_key:
         return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
     
     # Extract user data from request

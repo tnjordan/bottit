@@ -92,33 +92,33 @@ class BotFramework:
         # Calculate time since last action
         time_since_last = datetime.now() - self.last_action_time
         
-        # Base cooldown modified by activity level
-        base_cooldown = 1  # 5 minutes
+        # Much shorter cooldown for focused engagement (was 5 minutes)
+        base_cooldown = 20  # 20 seconds base cooldown
         cooldown = base_cooldown / self.personality.activity_level
         
         if time_since_last.total_seconds() < cooldown:
             return False
             
-        # Random factor based on activity level
-        return random.random() < self.personality.activity_level
+        # Higher probability of action for more active conversations
+        return random.random() < (self.personality.activity_level * 1.2)
     
     def decide_action(self, available_posts: List[Dict], available_comments: List[Dict]) -> Optional[BotAction]:
-        """Decide what action to take based on personality and available content, with smart reply prioritization"""
+        """Decide what action to take - STRICTLY focused on latest post with leveled engagement rules"""
         if not self.should_take_action():
             return None
             
         probabilities = self.personality.action_probabilities
         actions = []
         
-        # First priority: Check for replies to our comments that need responding to
+        # ABSOLUTE PRIORITY: Check for replies to our comments that need responding to
         pending_replies = self.get_pending_replies()
-        current_post_replies = []  # Replies on the current post
+        current_post_replies = []  # Replies on the current post ONLY
         
-        # If we have a current post, prioritize replies on that post
+        # If we have a current post, ONLY process replies on that specific post
         if available_posts:
             current_post_id = available_posts[0]['id']
             
-            # Find replies to our comments specifically on the current post
+            # Find replies to our comments EXCLUSIVELY on the current post
             for reply in pending_replies:
                 reply_post_id = reply.get('post')
                 if reply_post_id == current_post_id:
@@ -128,78 +128,179 @@ class BotFramework:
                         continue
                     current_post_replies.append(reply)
         
-        # ONLY respond to replies on the current post - ignore all old replies from other posts
+        # HIGHEST PRIORITY: Respond to replies on the current post
         if current_post_replies:
-            # HEAVILY prioritize responding to replies on the current active post
-            actions.extend(['respond_to_current_reply'] * int(probabilities.reply_to_comment * 1000))  # 10x more likely
-            print(f"🔥 {self.bot_id} found {len(current_post_replies)} replies on current post - HEAVILY prioritizing!")
+            # MASSIVELY prioritize responding to current post replies
+            actions.extend(['respond_to_current_reply'] * int(probabilities.reply_to_comment * 2000))  # 20x more likely
+            print(f"🔥🔥 {self.bot_id} found {len(current_post_replies)} replies on current post - MAXIMUM PRIORITY!")
         
-        # No longer respond to old replies from other posts - bots focus ONLY on current discussion
-        
-        # Focus exclusively on the most recent post if available - this ensures all bot activity is concentrated
+        # STRICT FOCUS: Work EXCLUSIVELY on the most recent post if available
         if available_posts:
-            latest_post = available_posts[0]  # Only work on the most recent post
+            latest_post = available_posts[0]  # ONLY work on the most recent post
             post_id = latest_post['id']
             
-            # Check if we've already made a base-level comment on this specific post
+            # CRITICAL CHECK: Has this bot already made a base-level comment on this specific post?
             already_commented = self.has_base_comment_on_post(post_id)
             
-            # Boost interaction probabilities for the current active post
-            actions.extend(['vote_post'] * int(probabilities.vote_on_post * 150))  # 1.5x more likely
+            # ALWAYS boost voting on the current active post
+            actions.extend(['vote_post'] * int(probabilities.vote_on_post * 200))  # 2x more likely
             
-            # If there are comments on the latest post, prioritize replies over base comments
+            # Process comments with STRICT rules
             if available_comments:
-                # Filter out only our own comments - keep all other bots' comments as valid reply targets
+                # Filter out ONLY our own comments - all other comments are valid targets
                 other_comments = []
                 for comment in available_comments:
                     comment_author = comment.get('author', {}).get('username')
-                    # Skip our own comments
+                    # Skip ONLY our own comments
                     if comment_author == self.bot_id:
                         continue
-                    
                     other_comments.append(comment)
                 
                 if other_comments:
-                    # ONLY allow base-level comments if we haven't already commented - NEVER if we have
+                    # ABSOLUTE RULE: If we haven't made a base comment yet, HEAVILY prioritize it
                     if not already_commented:
-                        # Prioritize base comment when haven't commented yet, but still allow replies
-                        actions.extend(['comment_post'] * int(probabilities.comment_on_post * 600))  # High priority for first comment
-                        actions.extend(['vote_comment'] * int(probabilities.vote_on_comment * 200))  # Lower priority for votes
-                        actions.extend(['reply_comment'] * int(probabilities.reply_to_comment * 300))  # Lower priority for replies
-                        print(f"🤖 {self.bot_id} prioritizing base comment (hasn't commented yet) over {len(other_comments)} replies")
+                        # First comment on post gets MASSIVE priority
+                        actions.extend(['comment_post'] * int(probabilities.comment_on_post * 1500))  # 15x priority
+                        # Still allow some interactions, but much lower priority
+                        actions.extend(['vote_comment'] * int(probabilities.vote_on_comment * 100))
+                        actions.extend(['reply_comment'] * int(probabilities.reply_to_comment * 200))
+                        print(f"🎯 {self.bot_id} MASSIVELY prioritizing base comment (first time on post {post_id})")
                     else:
-                        # If already commented, focus entirely on interacting with others
-                        actions.extend(['vote_comment'] * int(probabilities.vote_on_comment * 400))  # 4x more likely
-                        actions.extend(['reply_comment'] * int(probabilities.reply_to_comment * 800))  # 8x more likely
-                        print(f"🚫 {self.bot_id} BLOCKED from base comment - already commented on post {post_id}, focusing on replies")
+                        # ALREADY COMMENTED: Focus ENTIRELY on interacting with others
+                        actions.extend(['vote_comment'] * int(probabilities.vote_on_comment * 600))  # 6x more likely
+                        actions.extend(['reply_comment'] * int(probabilities.reply_to_comment * 1200))  # 12x more likely
+                        print(f"🚫 {self.bot_id} BLOCKED from base comment - already commented on post {post_id}, FOCUSING on replies")
                 else:
-                    # No other comments exist, definitely make base comment if we haven't commented
+                    # No other comments exist - make base comment if we haven't
                     if not already_commented:
-                        actions.extend(['comment_post'] * int(probabilities.comment_on_post * 800))  # Very high priority - no other comments to interact with
-                        print(f"🤖 {self.bot_id} will make first base comment (no other comments to reply to)")
+                        actions.extend(['comment_post'] * int(probabilities.comment_on_post * 1000))  # MAXIMUM priority
+                        print(f"🎯 {self.bot_id} will make FIRST base comment (no other comments exist)")
                     else:
-                        print(f"🚫 {self.bot_id} BLOCKED from base comment - already commented on post {post_id}")
+                        print(f"🚫 {self.bot_id} BLOCKED - already commented on post {post_id} with no other comments to interact with")
             else:
-                # No comments at all, definitely make base comment if we haven't commented
+                # No comments at all - make base comment if we haven't
                 if not already_commented:
-                    actions.extend(['comment_post'] * int(probabilities.comment_on_post * 800))  # Very high priority - start the conversation
-                    print(f"🤖 {self.bot_id} will make first base comment (no comments on post yet)")
+                    actions.extend(['comment_post'] * int(probabilities.comment_on_post * 1000))  # MAXIMUM priority
+                    print(f"🎯 {self.bot_id} will make FIRST comment on post (no comments yet)")
                 else:
-                    print(f"🚫 {self.bot_id} BLOCKED from base comment - already commented on post {post_id}")
+                    print(f"🚫 {self.bot_id} BLOCKED - already commented on post {post_id}")
             
-            # If we already commented but there are no other comments to reply to, just vote or do nothing
-            if already_commented and not other_comments:
-                print(f"🤖 {self.bot_id} already commented on post {post_id} with no other comments to reply to - limited actions")
-            
-            # Make post creation very rare when there's an active latest post - bots should focus on current discussion
-            actions.extend(['create_post'] * int(probabilities.create_post * 10))  # Very rare - only 1% of normal probability
+            # Make post creation EXTREMELY rare when there's an active post
+            actions.extend(['create_post'] * int(probabilities.create_post * 2))  # Only 0.2% of normal probability
         else:
-            # No recent post available, heavily favor creating new content
-            actions.extend(['create_post'] * int(probabilities.create_post * 300))  # 3x more likely
+            # No recent post available - moderately favor creating new content
+            actions.extend(['create_post'] * int(probabilities.create_post * 200))  # 2x more likely
         
         if not actions:
-            print(f"⚠️ {self.bot_id} has no available actions - this shouldn't happen!")
+            print(f"⚠️ {self.bot_id} has no available actions!")
             return None
+            
+        chosen_action = random.choice(actions)
+        print(f"🎯 {self.bot_id} chose action: {chosen_action} from {len(actions)} weighted options")
+        
+        # Handle the special case of responding to current post replies - TOP PRIORITY
+        if chosen_action == 'respond_to_current_reply' and current_post_replies:
+            # Filter out replies we've already responded to
+            available_replies = []
+            for reply in current_post_replies:
+                if not self.has_replied_to_comment(reply['id'], available_comments):
+                    available_replies.append(reply)
+            
+            if available_replies:
+                reply_target = random.choice(available_replies)
+                reply_author = reply_target.get('author', {}).get('username', 'unknown')
+                print(f"🔥🔥 {self.bot_id} PRIORITIZING current post reply from {reply_author}")
+                return BotAction(
+                    action_type='reply_comment',
+                    target_id=reply_target['id']
+                )
+            else:
+                print(f"🚫 {self.bot_id} no new current post replies to respond to")
+        elif chosen_action == 'create_post':
+            return BotAction(
+                action_type='create_post',
+                community_name=self._choose_community()
+            )
+        elif chosen_action == 'vote_post' and available_posts:
+            post = self._choose_post(available_posts)
+            return BotAction(
+                action_type='vote_post',
+                target_id=post['id'],
+                vote_type=self._decide_vote_type()
+            )
+        elif chosen_action == 'comment_post' and available_posts:
+            post = self._choose_post(available_posts)
+            return BotAction(
+                action_type='comment_post',
+                target_id=post['id']
+            )
+        elif chosen_action == 'vote_comment' and available_comments:
+            # Filter out our own comments and ensure only current post comments
+            current_post_id = available_posts[0]['id'] if available_posts else None
+            other_comments = []
+            
+            for comment in available_comments:
+                comment_author = comment.get('author', {}).get('username')
+                comment_post_id = comment.get('post')
+                
+                # Skip our own comments
+                if comment_author == self.bot_id:
+                    continue
+                
+                # Skip comments from wrong posts (safety check)
+                if comment_post_id != current_post_id:
+                    continue
+                
+                other_comments.append(comment)
+            
+            if other_comments:
+                comment = random.choice(other_comments)
+                current_post_id = available_posts[0]['id'] if available_posts else None
+                print(f"🎯 {self.bot_id} voting on comment {comment.get('id')} on current post {current_post_id}")
+                return BotAction(
+                    action_type='vote_comment',
+                    target_id=comment['id'],
+                    vote_type=self._decide_vote_type()
+                )
+            else:
+                current_post_id = available_posts[0]['id'] if available_posts else None
+                print(f"⚠️ {self.bot_id} no valid comments to vote on in current post {current_post_id}")
+        elif chosen_action == 'reply_comment' and available_comments:
+            # Filter out our own comments, but allow replies to any other comment
+            other_comments = []
+            current_post_id = available_posts[0]['id'] if available_posts else None
+            
+            for comment in available_comments:
+                comment_author = comment.get('author', {}).get('username')
+                comment_post_id = comment.get('post')
+                
+                # Skip our own comments
+                if comment_author == self.bot_id:
+                    continue
+                
+                # Skip comments from wrong posts (safety check)
+                if comment_post_id != current_post_id:
+                    continue
+                
+                # Skip comments we've already replied to
+                if self.has_replied_to_comment(comment['id'], available_comments):
+                    continue
+                
+                other_comments.append(comment)
+            
+            if other_comments:
+                comment = random.choice(other_comments)
+                current_post_id = available_posts[0]['id'] if available_posts else None
+                print(f"🎯 {self.bot_id} replying to comment {comment.get('id')} on current post {current_post_id}")
+                return BotAction(
+                    action_type='reply_comment',
+                    target_id=comment['id']
+                )
+            else:
+                current_post_id = available_posts[0]['id'] if available_posts else None
+                print(f"⚠️ {self.bot_id} no valid comments to reply to on current post {current_post_id}")
+        
+        return None
             
         chosen_action = random.choice(actions)
         print(f"🎯 {self.bot_id} chose action: {chosen_action} from {len(actions)} options")

@@ -20,15 +20,6 @@ def create_configured_farm() -> BotFarmOrganizer:
     """Create a bot farm using the configuration file"""
     organizer = BotFarmOrganizer()
     
-    # Get API key from environment
-    from dotenv import load_dotenv
-    load_dotenv()
-    api_key = os.getenv('BOTTIT_ADMIN_API_KEY')
-    
-    if not api_key:
-        print("❌ Error: BOTTIT_ADMIN_API_KEY not found in environment")
-        return None
-    
     # Create bots from configuration
     for bot_id, config in BOT_CONFIGS.items():
         personality_type = BotPersonalityType(config['personality_type'])
@@ -36,34 +27,41 @@ def create_configured_farm() -> BotFarmOrganizer:
         bot_config = BotConfig(
             bot_id=bot_id,
             personality_type=personality_type,
-            api_key=api_key,  # In production, each bot would have its own key
+            api_key=config['api_key'],  # Use each bot's individual API key
             custom_overrides=config.get('custom_overrides')
         )
         
         success = organizer.add_bot(bot_config)
         if not success:
             print(f"⚠️ Failed to add bot: {bot_id}")
+        else:
+            print(f"✅ Added bot: {bot_id} ({personality_type.value})")
     
     return organizer
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Run the Bottit Bot Farm')
+    parser = argparse.ArgumentParser(description='Run the Bottit Bot Farm - Focused Engagement Mode')
     parser.add_argument('--cycles', type=int, default=None, 
                        help='Number of cycles to run (default: run continuously)')
     parser.add_argument('--interval', type=int, default=FARM_SETTINGS['cycle_interval'],
-                       help=f'Seconds between cycles (default: {FARM_SETTINGS["cycle_interval"]})')
+                       help=f'Seconds between cycles (default: {FARM_SETTINGS["cycle_interval"]} - optimized for active conversation)')
     parser.add_argument('--list-bots', action='store_true',
                        help='List configured bots and exit')
     parser.add_argument('--single-cycle', action='store_true',
                        help='Run just one cycle and exit')
     parser.add_argument('--status', action='store_true',
                        help='Show bot status and exit')
+    parser.add_argument('--focus-mode', action='store_true', default=True,
+                       help='Enable focus mode - bots work only on latest post (default: enabled)')
     
     args = parser.parse_args()
     
-    print("🤖 Bottit Bot Farm Runner")
-    print("=" * 50)
+    print("🤖 Bottit Bot Farm Runner - FOCUSED ENGAGEMENT MODE")
+    print("=" * 60)
+    print("🎯 Bots will focus EXCLUSIVELY on the latest post")
+    print("📊 Conversation rules: One base comment per bot per post")
+    print("💬 Priority: Replies > Base comments > Votes > New posts")
     
     # Create the farm
     farm = create_configured_farm()
@@ -93,13 +91,16 @@ def main():
         return 0
     
     if args.single_cycle:
-        print("Running single cycle...")
+        print("Running single FOCUSED cycle...")
         results = farm.run_single_cycle()
-        print(f"\nCycle complete. {len(results)} actions processed.")
+        successful_actions = len([r for r in results if "✅" in r])
+        print(f"\nFocused cycle complete. {successful_actions} successful actions out of {len(results)} total.")
         return 0
     
-    # Run the farm
-    print(f"Starting farm with {len(farm.bots)} bots")
+    # Run the farm in focused mode
+    print(f"Starting FOCUSED bot farm with {len(farm.bots)} bots")
+    print(f"⏰ Cycle interval: {args.interval} seconds (optimized for active conversation)")
+    print("⚡ Focus Mode: ON - All bots work exclusively on latest post")
     print("Press Ctrl+C to stop")
     
     try:
@@ -108,14 +109,14 @@ def main():
             max_cycles=args.cycles
         )
     except KeyboardInterrupt:
-        print("\n👋 Bot farm stopped by user")
+        print("\n👋 Focused bot farm stopped by user")
     except Exception as e:
         print(f"\n❌ Error: {e}")
         return 1
     
     # Show final stats
     final_stats = farm.get_farm_statistics()
-    print(f"\n📊 Final stats: {final_stats['total_actions']} total actions")
+    print(f"\n📊 Final stats: {final_stats['total_actions']} total actions in focused mode")
     
     return 0
 
