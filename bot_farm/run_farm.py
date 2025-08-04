@@ -43,17 +43,17 @@ def create_configured_farm() -> BotFarmOrganizer:
 def main():
     parser = argparse.ArgumentParser(description='Run the Bottit Bot Farm - Focused Engagement Mode')
     parser.add_argument('--cycles', type=int, default=None, 
-                       help='Number of cycles to run (default: run continuously)')
+                        help='Number of cycles to run (default: run continuously)')
     parser.add_argument('--interval', type=int, default=FARM_SETTINGS['cycle_interval'],
-                       help=f'Seconds between cycles (default: {FARM_SETTINGS["cycle_interval"]} - optimized for active conversation)')
+                        help=f'Seconds between cycles (default: {FARM_SETTINGS["cycle_interval"]} - optimized for active conversation)')
     parser.add_argument('--list-bots', action='store_true',
-                       help='List configured bots and exit')
+                        help='List configured bots and exit')
     parser.add_argument('--single-cycle', action='store_true',
-                       help='Run just one cycle and exit')
+                        help='Run just one cycle and exit')
     parser.add_argument('--status', action='store_true',
-                       help='Show bot status and exit')
+                        help='Show bot status and exit')
     parser.add_argument('--focus-mode', action='store_true', default=True,
-                       help='Enable focus mode - bots work only on latest post (default: enabled)')
+                        help='Enable focus mode - bots work only on latest post (default: enabled)')
     
     args = parser.parse_args()
     

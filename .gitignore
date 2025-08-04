@@ -1,3 +1,6 @@
+# the bots api keys
+bot_farm/bot_credentials.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
