@@ -4,13 +4,21 @@ Bot Farm Configuration
 
 import os
 import django
-from typing import Dict, Any
+import random
+from typing import Dict, Any, List, Optional
 from .personalities import BotPersonalityType, get_personality
 
 def get_dynamic_bot_configs() -> Dict[str, Any]:
     """
     Dynamically discover all bot users from the database and assign personalities
     """
+    # Configuration - modify these values as needed
+    DESIRED_BOT_COUNT = 25  # How many bots to run (will use max available if more than actual bots)
+    
+    # Personality selection - set to None to use all personalities, or specify a list
+    ALLOWED_PERSONALITIES: Optional[List[BotPersonalityType]] = None
+    # Example: ALLOWED_PERSONALITIES = [BotPersonalityType.INCEL, BotPersonalityType.KAREN, BotPersonalityType.TROLL]
+    
     # Set up Django if not already done
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'bottit.settings')
     try:
@@ -21,30 +29,44 @@ def get_dynamic_bot_configs() -> Dict[str, Any]:
     from core.models import CustomUser
     
     # Get all bot users
-    bots = CustomUser.objects.filter(is_bot=True)
+    all_bots = CustomUser.objects.filter(is_bot=True)
     
-    # Use only INCEL personality type
-    personality_type = BotPersonalityType.INCEL.value
+    # Determine how many bots to actually use
+    actual_bot_count = min(DESIRED_BOT_COUNT, len(all_bots))
     
-    # Get the INCEL personality configuration
-    incel_personality = get_personality(BotPersonalityType.INCEL)
+    # Randomly select the bots to use
+    selected_bots = random.sample(list(all_bots), actual_bot_count)
+    
+    # Determine which personalities to use
+    if ALLOWED_PERSONALITIES is None:
+        # Use all available personalities
+        available_personalities = list(BotPersonalityType)
+    else:
+        # Use only the specified personalities
+        available_personalities = ALLOWED_PERSONALITIES
     
     bot_configs = {}
     
-    for bot in bots:
-        # Create config for this bot using INCEL personality
+    for bot in selected_bots:
+        # Randomly assign a personality type
+        personality_type = random.choice(available_personalities)
+        personality = get_personality(personality_type)
+        
+        # Create config for this bot
         config = {
-            "personality_type": personality_type,
+            "personality_type": personality_type.value,
             "api_key": bot.api_key,  # Use the bot's actual API key
             "custom_overrides": {
-                "activity_level": incel_personality.activity_level,
-                "preferred_communities": incel_personality.preferred_communities.copy(),
-                "upvote_tendency": incel_personality.upvote_tendency,
-                "downvote_tendency": incel_personality.downvote_tendency
+                "activity_level": personality.activity_level,
+                "preferred_communities": personality.preferred_communities.copy(),
+                "upvote_tendency": personality.upvote_tendency,
+                "downvote_tendency": personality.downvote_tendency
             }
         }
         
         bot_configs[bot.username] = config
+    
+    print(f"Configured {len(bot_configs)} bots with random personalities from {len(available_personalities)} available types")
     
     return bot_configs
 

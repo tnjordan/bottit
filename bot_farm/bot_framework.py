@@ -301,112 +301,6 @@ class BotFramework:
                 print(f"⚠️ {self.bot_id} no valid comments to reply to on current post {current_post_id}")
         
         return None
-            
-        chosen_action = random.choice(actions)
-        print(f"🎯 {self.bot_id} chose action: {chosen_action} from {len(actions)} options")
-        
-        # Handle the special case of responding to replies to our comments - ONLY on current post
-        if chosen_action == 'respond_to_current_reply' and current_post_replies:
-            # Filter out replies we've already responded to
-            available_replies = []
-            for reply in current_post_replies:
-                if not self.has_replied_to_comment(reply['id'], available_comments):
-                    available_replies.append(reply)
-            
-            if available_replies:
-                reply_target = random.choice(available_replies)
-                print(f"🔥 {self.bot_id} prioritizing current post reply from {reply_target.get('author', {}).get('username', 'unknown')}")
-                return BotAction(
-                    action_type='reply_comment',
-                    target_id=reply_target['id']
-                )
-            else:
-                print(f"🚫 {self.bot_id} no new replies to respond to - all already replied to")
-        elif chosen_action == 'create_post':
-            return BotAction(
-                action_type='create_post',
-                community_name=self._choose_community()
-            )
-        elif chosen_action == 'vote_post' and available_posts:
-            post = self._choose_post(available_posts)
-            return BotAction(
-                action_type='vote_post',
-                target_id=post['id'],
-                vote_type=self._decide_vote_type()
-            )
-        elif chosen_action == 'comment_post' and available_posts:
-            post = self._choose_post(available_posts)
-            return BotAction(
-                action_type='comment_post',
-                target_id=post['id']
-            )
-        elif chosen_action == 'vote_comment' and available_comments:
-            # Filter out our own comments and ensure only current post comments
-            current_post_id = available_posts[0]['id'] if available_posts else None
-            other_comments = []
-            
-            for comment in available_comments:
-                comment_author = comment.get('author', {}).get('username')
-                comment_post_id = comment.get('post')
-                
-                # Skip our own comments
-                if comment_author == self.bot_id:
-                    continue
-                
-                # Silently skip comments from wrong posts (safety check)
-                if comment_post_id != current_post_id:
-                    continue
-                
-                other_comments.append(comment)
-            
-            if other_comments:
-                comment = random.choice(other_comments)
-                current_post_id = available_posts[0]['id'] if available_posts else None
-                print(f"🎯 {self.bot_id} voting on comment {comment.get('id')} on current post {current_post_id}")
-                return BotAction(
-                    action_type='vote_comment',
-                    target_id=comment['id'],
-                    vote_type=self._decide_vote_type()
-                )
-            else:
-                current_post_id = available_posts[0]['id'] if available_posts else None
-                print(f"⚠️ {self.bot_id} no valid comments to vote on in current post {current_post_id}")
-        elif chosen_action == 'reply_comment' and available_comments:
-            # Filter out our own comments, but allow replies to any other bot's comments
-            other_comments = []
-            current_post_id = available_posts[0]['id'] if available_posts else None
-            
-            for comment in available_comments:
-                comment_author = comment.get('author', {}).get('username')
-                comment_post_id = comment.get('post')
-                
-                # Skip our own comments
-                if comment_author == self.bot_id:
-                    continue
-                
-                # Silently skip comments from wrong posts (safety check)
-                if comment_post_id != current_post_id:
-                    continue
-                
-                # Skip comments we've already replied to
-                if self.has_replied_to_comment(comment['id'], available_comments):
-                    continue
-                
-                other_comments.append(comment)
-            
-            if other_comments:
-                comment = random.choice(other_comments)
-                current_post_id = available_posts[0]['id'] if available_posts else None
-                print(f"🎯 {self.bot_id} replying to comment {comment.get('id')} on current post {current_post_id}")
-                return BotAction(
-                    action_type='reply_comment',
-                    target_id=comment['id']
-                )
-            else:
-                current_post_id = available_posts[0]['id'] if available_posts else None
-                print(f"⚠️ {self.bot_id} no valid comments to reply to on current post {current_post_id}")
-        
-        return None
     
     def _choose_post(self, posts: List[Dict]) -> Dict:
         """Always return the most recent post (first in the list) to ensure bots only work on current content"""
@@ -472,9 +366,9 @@ class BotFramework:
             
             # Configure generation with higher temperature for more creativity
             generation_config = {
-                'temperature': 1.9,  # Very high temperature for maximum creativity
+                'temperature': 1.5,  # Very high temperature for maximum creativity
                 'top_p': 0.98,      # Allow maximum diverse token selection
-                'top_k': 100,       # Consider even more possible tokens
+                'top_k': 40,       # Consider even more possible tokens
                 'max_output_tokens': 128_000,
                 'candidate_count': 1
             }
@@ -503,10 +397,10 @@ class BotFramework:
             
             # Configure generation with higher temperature for more creativity
             generation_config = {
-                'temperature': 1.8,  # Much higher temperature for maximum diversity
+                'temperature': 1.5,  # Much higher temperature for maximum diversity
                 'top_p': 0.95,      # Allow even more diverse token selection
-                'top_k': 80,        # Consider many more possible tokens
-                'max_output_tokens': 200,
+                'top_k': 40,        # Consider many more possible tokens
+                'max_output_tokens': 128_000,
                 'candidate_count': 1
             }
             

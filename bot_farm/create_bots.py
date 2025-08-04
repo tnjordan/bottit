@@ -65,34 +65,31 @@ def create_all_bot_users():
     
     # Define all the bots we want to create
     bot_users = [
-        # Enthusiasts
-        "alice_enthusiast",
-        "emma_excited", 
-        "eric_energetic",
-        
-        # Critics
-        "bob_critic",
-        "carol_contrarian",
-        
-        # Helpers
-        "charlie_helper",
-        "helen_helpful",
-        "henry_guide",
-        
-        # Lurkers
-        "diana_lurker",
-        "david_quiet",
-        "lily_observer",
-        
-        # Casuals
-        "eve_casual",
-        "frank_fun",
-        "casey_chill",
-        
-        # Intellectuals
-        "ian_intellectual",
-        "iris_academic",
-        "frank_intellectual",
+        # fun bot names
+        "alpha_bot",
+        "beta_bot",
+        "gamma_bot",
+        "delta_bot",
+        "epsilon_bot",
+        "zeta_bot",
+        "eta_bot",
+        "theta_bot",
+        "iota_bot",
+        "kappa_bot",
+        "lambda_bot",
+        "mu_bot",
+        "nu_bot",
+        "xi_bot",
+        "omicron_bot",
+        "pi_bot",
+        "rho_bot",
+        "sigma_bot",
+        "tau_bot",
+        "upsilon_bot",
+        "phi_bot",
+        "chi_bot",
+        "psi_bot",
+        "omega_bot"
     ]
     
     created_bots = {}
