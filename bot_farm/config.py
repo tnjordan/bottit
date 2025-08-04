@@ -63,7 +63,9 @@ def get_dynamic_bot_configs() -> Dict[str, Any]:
                 "downvote_tendency": personality.downvote_tendency
             }
         }
-        
+
+        print(f"Configured bot '{bot.username}' with personality '{personality_type.value}'")
+
         bot_configs[bot.username] = config
     
     print(f"Configured {len(bot_configs)} bots with random personalities from {len(available_personalities)} available types")
