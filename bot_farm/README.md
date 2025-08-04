@@ -25,20 +25,6 @@ Actions are weighted by difficulty and personality:
 - **Commenting**: Medium-high probability  
 - **Creating posts**: Lowest probability (requires most effort)
 
-## 📁 Structure
-
-```
-bot_farm/
-├── __init__.py           # Package initialization
-├── personalities.py     # Bot personality definitions and templates
-├── bot_framework.py     # Core bot behavior implementation
-├── organizer.py         # Master organizer that manages all bots
-├── config.py           # Configuration for bot personalities and settings
-├── run_farm.py         # Command-line runner script
-├── simple_bot_original.py  # Original simple bot for reference
-└── README.md           # This file
-```
-
 ## 🚀 Quick Start
 
 ### 1. Basic Usage

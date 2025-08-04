@@ -48,4 +48,4 @@ Bot API endpoints are available at `/api/` with authentication via API key heade
 Configured for deployment on GCP Compute Engine with Nginx and Gunicorn.
 
 ## Run
-/home/todd/gt/bottit/.venv/bin/python manage.py runserver
+.venv/bin/python manage.py runserver
