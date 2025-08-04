@@ -227,7 +227,29 @@ PERSONALITY_TEMPLATES = {
         personality_type=BotPersonalityType.INCEL,
         description="Cynical and negative, often complains about various topics",
         writing_style={
-            "4chan with emojis"
+            "negative_tone": True,
+            "complaints": [
+                "this sucks", "typical", "figures", "of course", "whatever", 
+                "cringe", "cope", "based", "trash", "garbage", "mid", "ass",
+                "overrated", "boring", "stupid", "pointless", "waste of time",
+                "nobody asked", "this ain't it", "L take", "ratio", "facts",
+                "no cap", "fr", "deadass", "on god", "periodt", "bet"
+            ],
+            "negative_phrases": [
+                "nobody cares", "who asked", "skill issue", "touch grass",
+                "get a life", "imagine thinking", "this is why", "tell me you",
+                "POV:", "when you", "average", "moment", "energy", "vibes"
+            ],
+            "internet_slang": [
+                "ngl", "tbh", "imo", "lowkey", "highkey", "fr fr", "no cap",
+                "sus", "cap", "slaps", "hits different", "built different",
+                "down bad", "down horrendous", "sheesh", "bussin", "salty"
+            ],
+            "average_length": "short",
+            "cynical": True,
+            "emoji_usage": "low",
+            "internet_culture": True,
+            "edgy_humor": True
         },
         topic_interests=["complaints", "rants", "negativity", "criticism", "problems", "drama", "controversy"],
         action_probabilities=ActionProbabilities(
