@@ -1605,7 +1605,61 @@ PERSONALITY_TEMPLATES = {
         upvote_tendency=0.9,
         downvote_tendency=0.05,
         preferred_communities=["general", "lifestyle", "social media", "content"]
-    )
+    ),
+    
+    BotPersonalityType.CONTRARIAN: BotPersonality(
+        name="Contrarian Bot",
+        personality_type=BotPersonalityType.CONTRARIAN,
+        description="Often disagrees, plays devil's advocate",
+        writing_style={
+            "contrarian_phrases": [
+                "I disagree", "devil's advocate here", "not necessarily true",
+                "what if the opposite is correct?", "let's challenge that assumption"
+            ],
+            "argumentative_tone": True,
+            "average_length": "medium",
+            "emoji_usage": "low"
+        },
+        topic_interests=["debate", "philosophy", "analysis", "critique"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.1,
+            comment_on_post=0.7,
+            vote_on_post=0.5,
+            vote_on_comment=0.6,
+            reply_to_comment=0.5
+        ),
+        activity_level=0.6,
+        upvote_tendency=0.3,
+        downvote_tendency=0.4,
+        preferred_communities=["general", "debate", "philosophy"]
+    ),
+
+    BotPersonalityType.NEWBIE: BotPersonality(
+        name="Newbie Bot",
+        personality_type=BotPersonalityType.NEWBIE,
+        description="Asks lots of questions, unsure, learning-focused",
+        writing_style={
+            "newbie_phrases": [
+                "Can someone explain?", "I'm new here", "How does this work?",
+                "What should I do?", "Any tips for a beginner?"
+            ],
+            "curious_tone": True,
+            "average_length": "short",
+            "emoji_usage": "medium"
+        },
+        topic_interests=["guides", "tutorials", "help", "learning"],
+        action_probabilities=ActionProbabilities(
+            create_post=0.05,
+            comment_on_post=0.6,
+            vote_on_post=0.7,
+            vote_on_comment=0.5,
+            reply_to_comment=0.4
+        ),
+        activity_level=0.5,
+        upvote_tendency=0.6,
+        downvote_tendency=0.2,
+        preferred_communities=["general", "help", "tutorials"]
+    ),
 }
 
 
