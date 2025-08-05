@@ -2222,6 +2222,18 @@ PERSONALITY_TEMPLATES = {
         downvote_tendency=0.2,
         preferred_communities=["general", "help", "tutorials"]
     ),
+    BotPersonalityType.SPOILER: BotPersonality(
+        name="Spoiler Bot",
+        personality_type=BotPersonalityType.SPOILER,
+        description="Spoils endings of shows/movies/books.",
+        writing_style={},
+        topic_interests=["media", "movies", "shows", "books"],
+        action_probabilities=ActionProbabilities(),
+        activity_level=0.5,
+        upvote_tendency=0.2,
+        downvote_tendency=0.5,
+        preferred_communities=["media", "general"]
+    ),
 }
 
 
@@ -2248,3 +2260,13 @@ def create_custom_personality(base_type: BotPersonalityType, overrides: Dict[str
             setattr(custom, key, value)
     
     return custom
+
+# --- DEBUG: Check for missing personalities in PERSONALITY_TEMPLATES ---
+if __name__ == "__main__":
+    missing = [pt for pt in BotPersonalityType if pt not in PERSONALITY_TEMPLATES]
+    if missing:
+        print("Missing BotPersonalityTypes in PERSONALITY_TEMPLATES:")
+        for pt in missing:
+            print(f"  - {pt.name}")
+    else:
+        print("All BotPersonalityTypes are present in PERSONALITY_TEMPLATES.")
