@@ -19,17 +19,17 @@ from bot_farm.config import BOT_CONFIGS, FARM_SETTINGS
 def create_configured_farm() -> BotFarmOrganizer:
     """Create a bot farm using the configuration file"""
     organizer = BotFarmOrganizer()
-    
+
     # Create bots from configuration
     for bot_id, config in BOT_CONFIGS.items():
         personality_type = BotPersonalityType(config['personality_type'])
-        
         bot_config = BotConfig(
             bot_id=bot_id,
             personality_type=personality_type,
             api_key=config['api_key'],  # Use each bot's individual API key
             custom_overrides=config.get('custom_overrides')
-        )    
+        )
+        organizer.add_bot(bot_config)
     return organizer
 
 
