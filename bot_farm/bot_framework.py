@@ -404,7 +404,7 @@ class BotFramework:
                 'candidate_count': 1
             }
             
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt, generation_config=generation_config)
             content = response.text.strip()
             return self._apply_personality_styling(content)
