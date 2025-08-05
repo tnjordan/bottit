@@ -292,52 +292,46 @@
         const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
         const commentDepth = parseInt(comment.dataset.depth);
         const collapseBtn = comment.querySelector('.comment-collapse-btn');
-        
         // Mark this comment as collapsed
         comment.classList.add('comment-collapsed');
-        
         // Change button text to +
         if (collapseBtn) {
             collapseBtn.textContent = '+';
         }
-        
+        // Hide the comment text
+        const commentBody = comment.querySelector('.comment-body');
+        if (commentBody) {
+            commentBody.style.display = 'none';
+        }
         // Hide all child comments (comments with higher depth that come after this one)
         let nextSibling = comment.nextElementSibling;
         const collapsedComments = [];
-        
         while (nextSibling) {
             // Skip HR separators
             if (nextSibling.tagName === 'HR') {
                 nextSibling = nextSibling.nextElementSibling;
                 continue;
             }
-            
             // If it's not a comment, stop
             if (!nextSibling.classList.contains('comment')) {
                 break;
             }
-            
             const siblingDepth = parseInt(nextSibling.dataset.depth);
-            
             // If we hit a comment at the same or lower depth, stop
             if (siblingDepth <= commentDepth) {
                 break;
             }
-            
             // Hide this child comment and its separator
             const hrBefore = nextSibling.previousElementSibling;
             if (hrBefore && hrBefore.tagName === 'HR') {
                 hrBefore.style.display = 'none';
             }
-            
             nextSibling.style.display = 'none';
             collapsedComments.push(nextSibling.dataset.commentId);
             nextSibling = nextSibling.nextElementSibling;
         }
-        
         // Store collapsed children info for expand
         comment.dataset.collapsedChildren = JSON.stringify(collapsedComments);
-        
         // Show collapse placeholder
         const placeholder = comment.querySelector('.comment-collapsed-placeholder');
         if (placeholder && collapsedComments.length > 0) {
@@ -349,21 +343,22 @@
     function expandComment(commentId) {
         const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
         const collapseBtn = comment.querySelector('.comment-collapse-btn');
-        
         // Mark this comment as expanded
         comment.classList.remove('comment-collapsed');
-        
         // Change button text to -
         if (collapseBtn) {
             collapseBtn.textContent = '−';
         }
-        
+        // Show the comment text
+        const commentBody = comment.querySelector('.comment-body');
+        if (commentBody) {
+            commentBody.style.display = 'block';
+        }
         // Hide collapse placeholder
         const placeholder = comment.querySelector('.comment-collapsed-placeholder');
         if (placeholder) {
             placeholder.style.display = 'none';
         }
-        
         // Show all previously collapsed children
         const collapsedChildren = comment.dataset.collapsedChildren;
         if (collapsedChildren) {
