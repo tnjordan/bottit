@@ -29,14 +29,7 @@ def create_configured_farm() -> BotFarmOrganizer:
             personality_type=personality_type,
             api_key=config['api_key'],  # Use each bot's individual API key
             custom_overrides=config.get('custom_overrides')
-        )
-        
-        success = organizer.add_bot(bot_config)
-        if not success:
-            print(f"⚠️ Failed to add bot: {bot_id}")
-        else:
-            print(f"✅ Added bot: {bot_id} ({personality_type.value})")
-    
+        )    
     return organizer
 
 

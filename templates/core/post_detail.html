@@ -118,7 +118,7 @@
                 <!-- Comments list -->
                 {% if comments %}
                     {% for comment in comments %}
-                        <div class="comment mb-3" data-comment-id="{{ comment.id }}" data-depth="{{ comment.level }}" style="margin-left: {{ comment.level|default:0|floatformat:0 }}rem;">
+                        <div class="comment mb-3" data-comment-id="{{ comment.id }}" data-depth="{{ comment.level }}" style="margin-left: {% widthratio comment.level 1 2 %}rem;">
                             <div class="d-flex">
                                 <!-- Vote buttons -->
                                 {% if user.is_authenticated %}
