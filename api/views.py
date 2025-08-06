@@ -1,14 +1,19 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db.models import F
+from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+import secrets
+import string
 
-from core.models import Community, Post, Comment, Vote
+from core.models import Community, Post, Comment, Vote, CustomUser
 from .serializers import (
     CommunitySerializer, PostSerializer, CommentSerializer,
-    PostCreateSerializer, CommentCreateSerializer, VoteSerializer
+    PostCreateSerializer, CommentCreateSerializer, VoteSerializer,
+    UserSerializer, UserDetailSerializer
 )
 
 
@@ -154,6 +159,19 @@ class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     
+    def get_queryset(self):
+        """Filter comments by post if post parameter is provided"""
+        queryset = super().get_queryset()
+        post_id = self.request.query_params.get('post', None)
+        if post_id:
+            try:
+                post_id = int(post_id)
+                queryset = queryset.filter(post_id=post_id)
+            except ValueError:
+                # Invalid post ID, return empty queryset
+                queryset = queryset.none()
+        return queryset.order_by('-created_at')
+    
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def vote(self, request, pk=None):
         """Vote on a comment"""
@@ -189,3 +207,113 @@ class CommentViewSet(viewsets.ModelViewSet):
             )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    """API viewset for user profiles"""
+    queryset = CustomUser.objects.all()
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    lookup_field = 'username'
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return UserDetailSerializer
+        return UserSerializer
+    
+    @action(detail=True, methods=['get'])
+    def post_comments(self, request, username=None):
+        """Check if user has commented on a specific post"""
+        user = self.get_object()
+        post_id = request.query_params.get('post_id')
+        
+        if not post_id:
+            return Response(
+                {'error': 'post_id parameter is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            post_id = int(post_id)
+        except ValueError:
+            return Response(
+                {'error': 'post_id must be a valid integer'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if user has made any base-level comments on this post
+        has_base_comment = user.comments.filter(
+            post_id=post_id,
+            parent_comment__isnull=True,
+            is_deleted=False
+        ).exists()
+        
+        return Response({
+            'has_commented': has_base_comment,
+            'post_id': post_id,
+            'username': user.username
+        })
+    
+    @action(detail=True, methods=['get'])
+    def pending_replies(self, request, username=None):
+        """Get comments that are replies to this user's comments"""
+        user = self.get_object()
+        
+        # Find all comments made by this user
+        user_comments = user.comments.filter(is_deleted=False).values_list('id', flat=True)
+        
+        # Find replies to those comments
+        replies_to_user = Comment.objects.filter(
+            parent_comment__in=user_comments,
+            is_deleted=False
+        ).exclude(
+            author=user  # Exclude self-replies
+        ).order_by('-created_at')
+        
+        # Limit to recent replies (last 50)
+        replies_to_user = replies_to_user[:50]
+        
+        serializer = CommentSerializer(replies_to_user, many=True)
+        return Response({
+            'replies': serializer.data,
+            'count': len(serializer.data)
+        })
+    
+    @action(detail=True, methods=['get'])
+    def posts(self, request, username=None):
+        """Get posts by a specific user"""
+        user = self.get_object()
+        posts = user.posts.filter(is_deleted=False).order_by('-created_at')
+        
+        # Apply sorting and filtering similar to other endpoints
+        sort_by = request.query_params.get('sort', 'new')
+        if sort_by == 'top':
+            posts = posts.order_by('-score', '-created_at')
+        
+        # Pagination
+        page = self.paginate_queryset(posts)
+        if page is not None:
+            serializer = PostSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = PostSerializer(posts, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def comments(self, request, username=None):
+        """Get comments by a specific user"""
+        user = self.get_object()
+        comments = user.comments.filter(is_deleted=False).order_by('-created_at')
+        
+        # Apply sorting similar to other endpoints
+        sort_by = request.query_params.get('sort', 'new')
+        if sort_by == 'top':
+            comments = comments.order_by('-score', '-created_at')
+        
+        # Pagination
+        page = self.paginate_queryset(comments)
+        if page is not None:
+            serializer = CommentSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = CommentSerializer(comments, many=True)
+        return Response(serializer.data)

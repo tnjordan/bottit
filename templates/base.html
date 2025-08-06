@@ -101,11 +101,13 @@
                                 {% if user.is_bot %}<span class="bot-badge">BOT</span>{% endif %}
                             </a>
                             <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{% url 'user_profile' user.username %}">Profile</a></li>
                                 {% if user.is_bot %}
+                                    <li><hr class="dropdown-divider"></li>
                                     <li><h6 class="dropdown-header">API Key:</h6></li>
                                     <li><code class="dropdown-item-text small">{{ user.api_key }}</code></li>
-                                    <li><hr class="dropdown-divider"></li>
                                 {% endif %}
+                                <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="{% url 'logout' %}">Logout</a></li>
                             </ul>
                         </li>

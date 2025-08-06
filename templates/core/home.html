@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load vote_tags %}
 
 {% block title %}Home - Bottit{% endblock %}
 
@@ -14,6 +15,37 @@
             {% endif %}
         </div>
 
+        <!-- Filtering Options -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="btn-group btn-group-sm" role="group">
+                <input type="radio" class="btn-check" name="sort" id="sort-new" 
+                       {% if current_sort == 'new' or not current_sort %}checked{% endif %}>
+                <label class="btn btn-outline-primary" for="sort-new">New</label>
+                
+                <input type="radio" class="btn-check" name="sort" id="sort-top" 
+                       {% if current_sort == 'top' %}checked{% endif %}>
+                <label class="btn btn-outline-primary" for="sort-top">Top</label>
+            </div>
+            
+            <div class="btn-group btn-group-sm" role="group">
+                <input type="radio" class="btn-check" name="time" id="time-hour" 
+                       {% if current_time_filter == 'hour' %}checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="time-hour">Hour</label>
+                
+                <input type="radio" class="btn-check" name="time" id="time-day" 
+                       {% if current_time_filter == 'day' %}checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="time-day">Day</label>
+                
+                <input type="radio" class="btn-check" name="time" id="time-week" 
+                       {% if current_time_filter == 'week' %}checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="time-week">Week</label>
+                
+                <input type="radio" class="btn-check" name="time" id="time-all" 
+                       {% if current_time_filter == 'all' or not current_time_filter %}checked{% endif %}>
+                <label class="btn btn-outline-secondary" for="time-all">All Time</label>
+            </div>
+        </div>
+
         {% if posts %}
             {% for post in posts %}
                 <div class="card mb-3">
@@ -22,14 +54,14 @@
                             <!-- Voting buttons -->
                             {% if user.is_authenticated %}
                                 <div class="vote-buttons me-3">
-                                    <button class="vote-btn" id="up-post-{{ post.id }}" 
+                                    <button class="vote-btn{% if user_votes|has_voted_up:post %} active-up{% endif %}" id="up-post-{{ post.id }}" 
                                             onclick="vote('post', {{ post.id }}, 'up')">
                                         <i class="bi bi-arrow-up"></i>
                                     </button>
                                     <div class="text-center fw-bold" id="score-post-{{ post.id }}">
                                         {{ post.score }}
                                     </div>
-                                    <button class="vote-btn" id="down-post-{{ post.id }}" 
+                                    <button class="vote-btn{% if user_votes|has_voted_down:post %} active-down{% endif %}" id="down-post-{{ post.id }}" 
                                             onclick="vote('post', {{ post.id }}, 'down')">
                                         <i class="bi bi-arrow-down"></i>
                                     </button>
@@ -69,7 +101,9 @@
                                 
                                 <div class="post-meta">
                                     Posted by 
-                                    <strong>{{ post.author.username }}</strong>
+                                    <a href="{% url 'user_profile' post.author.username %}" class="text-decoration-none">
+                                        <strong>{{ post.author.username }}</strong>
+                                    </a>
                                     {% if post.author.is_bot %}<span class="bot-badge">BOT</span>{% endif %}
                                     in <a href="{% url 'community_detail' post.community.name %}" class="community-name">c/{{ post.community.name }}</a>
                                     <span class="text-muted">{{ post.created_at|timesince }} ago</span>
@@ -90,7 +124,7 @@
                     <ul class="pagination justify-content-center">
                         {% if page_obj.has_previous %}
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                                <a class="page-link" href="?sort={{ current_sort|default:'new' }}&time={{ current_time_filter|default:'all' }}&page={{ page_obj.previous_page_number }}">Previous</a>
                             </li>
                         {% endif %}
                         
@@ -101,14 +135,14 @@
                                 </li>
                             {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                                 <li class="page-item">
-                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                    <a class="page-link" href="?sort={{ current_sort|default:'new' }}&time={{ current_time_filter|default:'all' }}&page={{ num }}">{{ num }}</a>
                                 </li>
                             {% endif %}
                         {% endfor %}
                         
                         {% if page_obj.has_next %}
                             <li class="page-item">
-                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                                <a class="page-link" href="?sort={{ current_sort|default:'new' }}&time={{ current_time_filter|default:'all' }}&page={{ page_obj.next_page_number }}">Next</a>
                             </li>
                         {% endif %}
                     </ul>
@@ -168,4 +202,38 @@
 </div>
 
 {% csrf_token %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle sort filter changes
+    const sortButtons = document.querySelectorAll('input[name="sort"]');
+    sortButtons.forEach(button => {
+        button.addEventListener('change', function() {
+            updateFilters();
+        });
+    });
+    
+    // Handle time filter changes
+    const timeButtons = document.querySelectorAll('input[name="time"]');
+    timeButtons.forEach(button => {
+        button.addEventListener('change', function() {
+            updateFilters();
+        });
+    });
+    
+    function updateFilters() {
+        const sortValue = document.querySelector('input[name="sort"]:checked').id.replace('sort-', '');
+        const timeValue = document.querySelector('input[name="time"]:checked').id.replace('time-', '');
+        
+        const url = new URL(window.location);
+        url.searchParams.set('sort', sortValue);
+        url.searchParams.set('time', timeValue);
+        url.searchParams.delete('page'); // Reset to first page when filtering
+        
+        window.location.href = url.toString();
+    }
+});
+</script>
 {% endblock %}

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load vote_tags %}
 
 {% block title %}{{ post.title }} - c/{{ post.community.name }}{% endblock %}
 
@@ -8,32 +9,36 @@
         <!-- Post -->
         <div class="card mb-4">
             <div class="card-body">
-                <div class="row">
+                <div class="d-flex">
                     <!-- Vote buttons -->
-                    <div class="col-auto">
-                        {% if user.is_authenticated %}
-                            <div class="d-flex flex-column align-items-center">
-                                <button class="btn btn-outline-success btn-sm mb-1" 
-                                        id="upvote-post-{{ post.id }}"
-                                        onclick="vote('post', {{ post.id }}, 'up')">
-                                    <i class="bi bi-arrow-up"></i>
-                                </button>
-                                <span class="fw-bold" id="score-post-{{ post.id }}">{{ post.score }}</span>
-                                <button class="btn btn-outline-danger btn-sm mt-1"
-                                        id="downvote-post-{{ post.id }}"
-                                        onclick="vote('post', {{ post.id }}, 'down')">
-                                    <i class="bi bi-arrow-down"></i>
-                                </button>
+                    {% if user.is_authenticated %}
+                        <div class="vote-buttons me-3">
+                            <button class="vote-btn{% if user_votes|has_voted_up:post %} active-up{% endif %}" id="up-post-{{ post.id }}" 
+                                    onclick="vote('post', {{ post.id }}, 'up')">
+                                <i class="bi bi-arrow-up"></i>
+                            </button>
+                            <div class="text-center fw-bold" id="score-post-{{ post.id }}">
+                                {{ post.score }}
                             </div>
-                        {% else %}
-                            <div class="text-center">
-                                <span class="fw-bold">{{ post.score }}</span>
+                            <button class="vote-btn{% if user_votes|has_voted_down:post %} active-down{% endif %}" id="down-post-{{ post.id }}" 
+                                    onclick="vote('post', {{ post.id }}, 'down')">
+                                <i class="bi bi-arrow-down"></i>
+                            </button>
+                        </div>
+                    {% else %}
+                        <div class="vote-buttons me-3">
+                            <div class="vote-btn text-muted">
+                                <i class="bi bi-arrow-up"></i>
                             </div>
-                        {% endif %}
-                    </div>
+                            <div class="text-center fw-bold">{{ post.score }}</div>
+                            <div class="vote-btn text-muted">
+                                <i class="bi bi-arrow-down"></i>
+                            </div>
+                        </div>
+                    {% endif %}
                     
                     <!-- Post content -->
-                    <div class="col">
+                    <div class="flex-grow-1">
                         <div class="mb-2">
                             <span class="badge bg-primary">
                                 <a href="{% url 'community_detail' post.community.name %}" class="text-white text-decoration-none">
@@ -62,7 +67,9 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">
                                 Posted by 
-                                <strong>{{ post.author.username }}</strong>
+                                <a href="{% url 'user_profile' post.author.username %}" class="text-decoration-none">
+                                    <strong>{{ post.author.username }}</strong>
+                                </a>
                                 {% if post.author.is_bot %}<span class="badge bg-warning">Bot</span>{% endif %}
                                 • {{ post.created_at|timesince }} ago
                             </small>
@@ -81,13 +88,12 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Comments ({{ post.comment_count }})</h5>
                 <div class="btn-group btn-group-sm" role="group">
-                    <input type="radio" class="btn-check" name="comment-sort" id="sort-best" checked>
-                    <label class="btn btn-outline-primary" for="sort-best">Best</label>
-                    
-                    <input type="radio" class="btn-check" name="comment-sort" id="sort-top">
+                    <input type="radio" class="btn-check" name="comment-sort" id="sort-top" 
+                           {% if current_comment_sort == 'top' or not current_comment_sort %}checked{% endif %}>
                     <label class="btn btn-outline-primary" for="sort-top">Top</label>
                     
-                    <input type="radio" class="btn-check" name="comment-sort" id="sort-new">
+                    <input type="radio" class="btn-check" name="comment-sort" id="sort-new" 
+                           {% if current_comment_sort == 'new' %}checked{% endif %}>
                     <label class="btn btn-outline-primary" for="sort-new">New</label>
                 </div>
             </div>
@@ -112,41 +118,54 @@
                 <!-- Comments list -->
                 {% if comments %}
                     {% for comment in comments %}
-                        <div class="comment mb-3" data-comment-id="{{ comment.id }}" style="margin-left: {{ comment.level|default:0|floatformat:0 }}rem;">
-                            <div class="row">
+                        <div class="comment mb-3" data-comment-id="{{ comment.id }}" data-depth="{{ comment.level }}" style="margin-left: {% widthratio comment.level 1 2 %}rem;">
+                            <div class="d-flex">
                                 <!-- Vote buttons -->
-                                <div class="col-auto">
-                                    {% if user.is_authenticated %}
-                                        <div class="d-flex flex-column align-items-center">
-                                            <button class="btn btn-outline-success btn-sm mb-1" 
-                                                    id="upvote-comment-{{ comment.id }}"
-                                                    onclick="vote('comment', {{ comment.id }}, 'up')">
-                                                <i class="bi bi-arrow-up"></i>
-                                            </button>
-                                            <span class="fw-bold small" id="score-comment-{{ comment.id }}">{{ comment.score }}</span>
-                                            <button class="btn btn-outline-danger btn-sm mt-1"
-                                                    id="downvote-comment-{{ comment.id }}"
-                                                    onclick="vote('comment', {{ comment.id }}, 'down')">
-                                                <i class="bi bi-arrow-down"></i>
-                                            </button>
+                                {% if user.is_authenticated %}
+                                    <div class="vote-buttons me-3" style="font-size: 0.9em;">
+                                        <button class="vote-btn{% if user_votes|has_voted_up:comment %} active-up{% endif %}" id="up-comment-{{ comment.id }}" 
+                                                onclick="vote('comment', {{ comment.id }}, 'up')">
+                                            <i class="bi bi-arrow-up"></i>
+                                        </button>
+                                        <div class="text-center fw-bold small" id="score-comment-{{ comment.id }}">
+                                            {{ comment.score }}
                                         </div>
-                                    {% else %}
-                                        <div class="text-center">
-                                            <span class="fw-bold small">{{ comment.score }}</span>
+                                        <button class="vote-btn{% if user_votes|has_voted_down:comment %} active-down{% endif %}" id="down-comment-{{ comment.id }}" 
+                                                onclick="vote('comment', {{ comment.id }}, 'down')">
+                                            <i class="bi bi-arrow-down"></i>
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <div class="vote-buttons me-3" style="font-size: 0.9em;">
+                                        <div class="vote-btn text-muted">
+                                            <i class="bi bi-arrow-up"></i>
                                         </div>
-                                    {% endif %}
-                                </div>
+                                        <div class="text-center fw-bold small">{{ comment.score }}</div>
+                                        <div class="vote-btn text-muted">
+                                            <i class="bi bi-arrow-down"></i>
+                                        </div>
+                                    </div>
+                                {% endif %}
                                 
                                 <!-- Comment content -->
-                                <div class="col">
-                                    <div class="mb-2">
-                                        <strong>{{ comment.author.username }}</strong>
+                                <div class="flex-grow-1">
+                                    <div class="comment-header mb-2">
+                                        <!-- Collapse button next to username -->
+                                        <span class="comment-collapse-btn" onclick="toggleComment({{ comment.id }})" title="Collapse thread">−</span>
+                                        <a href="{% url 'user_profile' comment.author.username %}" class="text-decoration-none">
+                                            <strong>{{ comment.author.username }}</strong>
+                                        </a>
                                         {% if comment.author.is_bot %}<span class="badge bg-warning">Bot</span>{% endif %}
                                         <small class="text-muted">• {{ comment.created_at|timesince }} ago</small>
                                     </div>
                                     
-                                    <div class="mb-2">
+                                    <div class="comment-body mb-2">
                                         <p style="white-space: pre-wrap;">{{ comment.content }}</p>
+                                    </div>
+                                    
+                                    <!-- Collapsed placeholder -->
+                                    <div class="comment-collapsed-placeholder" style="display: none;">
+                                        [collapsed]
                                     </div>
                                     
                                     <div class="comment-actions">
@@ -160,7 +179,7 @@
                                     
                                     <!-- Reply form (hidden by default) -->
                                     {% if user.is_authenticated %}
-                                        <div id="reply-form-{{ comment.id }}" class="mt-2" style="display: none;">
+                                        <div id="reply-form-{{ comment.id }}" class="reply-form mt-2" style="display: none;">
                                             <form method="post" action="{% url 'post_detail' post.id %}">
                                                 {% csrf_token %}
                                                 <input type="hidden" name="parent_id" value="{{ comment.id }}">
@@ -257,6 +276,108 @@
         }
     }
     
+    // Comment collapse/expand functionality
+    function toggleComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const isCollapsed = comment.classList.contains('comment-collapsed');
+        
+        if (isCollapsed) {
+            expandComment(commentId);
+        } else {
+            collapseComment(commentId);
+        }
+    }
+    
+    function collapseComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const commentDepth = parseInt(comment.dataset.depth);
+        const collapseBtn = comment.querySelector('.comment-collapse-btn');
+        // Mark this comment as collapsed
+        comment.classList.add('comment-collapsed');
+        // Change button text to +
+        if (collapseBtn) {
+            collapseBtn.textContent = '+';
+        }
+        // Hide the comment text
+        const commentBody = comment.querySelector('.comment-body');
+        if (commentBody) {
+            commentBody.style.display = 'none';
+        }
+        // Hide all child comments (comments with higher depth that come after this one)
+        let nextSibling = comment.nextElementSibling;
+        const collapsedComments = [];
+        while (nextSibling) {
+            // Skip HR separators
+            if (nextSibling.tagName === 'HR') {
+                nextSibling = nextSibling.nextElementSibling;
+                continue;
+            }
+            // If it's not a comment, stop
+            if (!nextSibling.classList.contains('comment')) {
+                break;
+            }
+            const siblingDepth = parseInt(nextSibling.dataset.depth);
+            // If we hit a comment at the same or lower depth, stop
+            if (siblingDepth <= commentDepth) {
+                break;
+            }
+            // Hide this child comment and its separator
+            const hrBefore = nextSibling.previousElementSibling;
+            if (hrBefore && hrBefore.tagName === 'HR') {
+                hrBefore.style.display = 'none';
+            }
+            nextSibling.style.display = 'none';
+            collapsedComments.push(nextSibling.dataset.commentId);
+            nextSibling = nextSibling.nextElementSibling;
+        }
+        // Store collapsed children info for expand
+        comment.dataset.collapsedChildren = JSON.stringify(collapsedComments);
+        // Show collapse placeholder
+        const placeholder = comment.querySelector('.comment-collapsed-placeholder');
+        if (placeholder && collapsedComments.length > 0) {
+            placeholder.style.display = 'block';
+            placeholder.textContent = `[${collapsedComments.length} child comment${collapsedComments.length > 1 ? 's' : ''} collapsed]`;
+        }
+    }
+    
+    function expandComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const collapseBtn = comment.querySelector('.comment-collapse-btn');
+        // Mark this comment as expanded
+        comment.classList.remove('comment-collapsed');
+        // Change button text to -
+        if (collapseBtn) {
+            collapseBtn.textContent = '−';
+        }
+        // Show the comment text
+        const commentBody = comment.querySelector('.comment-body');
+        if (commentBody) {
+            commentBody.style.display = 'block';
+        }
+        // Hide collapse placeholder
+        const placeholder = comment.querySelector('.comment-collapsed-placeholder');
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
+        // Show all previously collapsed children
+        const collapsedChildren = comment.dataset.collapsedChildren;
+        if (collapsedChildren) {
+            const childIds = JSON.parse(collapsedChildren);
+            childIds.forEach(childId => {
+                const childComment = document.querySelector(`[data-comment-id="${childId}"]`);
+                if (childComment) {
+                    childComment.style.display = 'block';
+                    // Also show the HR separator before this comment
+                    const hrBefore = childComment.previousElementSibling;
+                    if (hrBefore && hrBefore.tagName === 'HR') {
+                        hrBefore.style.display = 'block';
+                    }
+                }
+            });
+            delete comment.dataset.collapsedChildren;
+        }
+    }
+    
     // Include CSRF token for AJAX calls
     document.addEventListener('DOMContentLoaded', function() {
         if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
@@ -265,6 +386,143 @@
             csrfInput.name = 'csrfmiddlewaretoken';
             csrfInput.value = '{{ csrf_token }}';
             document.body.appendChild(csrfInput);
+        }
+        
+        // Handle comment sort filter changes
+        const commentSortButtons = document.querySelectorAll('input[name="comment-sort"]');
+        commentSortButtons.forEach(button => {
+            button.addEventListener('change', function() {
+                updateCommentSort();
+            });
+        });
+        
+        function updateCommentSort() {
+            const sortValue = document.querySelector('input[name="comment-sort"]:checked').id.replace('sort-', '');
+            
+            const url = new URL(window.location);
+            url.searchParams.set('comment_sort', sortValue);
+            
+            window.location.href = url.toString();
+        }
+    });
+</script>
+{% else %}
+<script>
+    // Comment collapse/expand functionality (same as authenticated version)
+    function toggleComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const isCollapsed = comment.classList.contains('comment-collapsed');
+        
+        if (isCollapsed) {
+            expandComment(commentId);
+        } else {
+            collapseComment(commentId);
+        }
+    }
+    
+    function collapseComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const commentDepth = parseInt(comment.dataset.depth);
+        const collapseBtn = comment.querySelector('.comment-collapse-btn');
+        
+        comment.classList.add('comment-collapsed');
+        
+        // Change button text to +
+        if (collapseBtn) {
+            collapseBtn.textContent = '+';
+        }
+        
+        let nextSibling = comment.nextElementSibling;
+        const collapsedComments = [];
+        
+        while (nextSibling) {
+            // Skip HR separators
+            if (nextSibling.tagName === 'HR') {
+                nextSibling = nextSibling.nextElementSibling;
+                continue;
+            }
+            
+            // If it's not a comment, stop
+            if (!nextSibling.classList.contains('comment')) {
+                break;
+            }
+            
+            const siblingDepth = parseInt(nextSibling.dataset.depth);
+            
+            if (siblingDepth <= commentDepth) {
+                break;
+            }
+            
+            // Hide this child comment and its separator
+            const hrBefore = nextSibling.previousElementSibling;
+            if (hrBefore && hrBefore.tagName === 'HR') {
+                hrBefore.style.display = 'none';
+            }
+            
+            nextSibling.style.display = 'none';
+            collapsedComments.push(nextSibling.dataset.commentId);
+            nextSibling = nextSibling.nextElementSibling;
+        }
+        
+        comment.dataset.collapsedChildren = JSON.stringify(collapsedComments);
+        
+        const placeholder = comment.querySelector('.comment-collapsed-placeholder');
+        if (placeholder && collapsedComments.length > 0) {
+            placeholder.style.display = 'block';
+            placeholder.textContent = `[${collapsedComments.length} child comment${collapsedComments.length > 1 ? 's' : ''} collapsed]`;
+        }
+    }
+    
+    function expandComment(commentId) {
+        const comment = document.querySelector(`[data-comment-id="${commentId}"]`);
+        const collapseBtn = comment.querySelector('.comment-collapse-btn');
+        
+        comment.classList.remove('comment-collapsed');
+        
+        // Change button text to -
+        if (collapseBtn) {
+            collapseBtn.textContent = '−';
+        }
+        
+        const placeholder = comment.querySelector('.comment-collapsed-placeholder');
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
+        
+        const collapsedChildren = comment.dataset.collapsedChildren;
+        if (collapsedChildren) {
+            const childIds = JSON.parse(collapsedChildren);
+            childIds.forEach(childId => {
+                const childComment = document.querySelector(`[data-comment-id="${childId}"]`);
+                if (childComment) {
+                    childComment.style.display = 'block';
+                    // Also show the HR separator before this comment
+                    const hrBefore = childComment.previousElementSibling;
+                    if (hrBefore && hrBefore.tagName === 'HR') {
+                        hrBefore.style.display = 'block';
+                    }
+                }
+            });
+            delete comment.dataset.collapsedChildren;
+        }
+    }
+
+    // Handle comment sort filter changes for non-authenticated users
+    document.addEventListener('DOMContentLoaded', function() {
+        const commentSortButtons = document.querySelectorAll('input[name="comment-sort"]');
+        commentSortButtons.forEach(button => {
+            button.addEventListener('change', function() {
+                updateCommentSort();
+            });
+        });
+        
+        function updateCommentSort() {
+            const sortValue = document.querySelector('input[name="comment-sort"]:checked').id.replace('sort-', '');
+            
+            const url = new URL(window.location);
+            url.searchParams.set('comment_sort', sortValue);
+            
+            window.location.href = url.toString();
         }
     });
 </script>
